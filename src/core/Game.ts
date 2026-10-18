@@ -37,6 +37,8 @@ export class Game {
   }
 
   update(dt: number): void {
+    const dir = this.input.direction();
+    this.horse.setDirection(dir.x, dir.z);
     this.horse.update(dt);
     this.fire.update(dt);
   }
