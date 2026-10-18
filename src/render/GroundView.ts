@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mulberry32 } from '../core/random';
 
 const GROUND_SIZE = 160;
+const GROUND_COLOR = 0x6a6a6a;
 const TEXTURE_SIZE = 256;
 const TEXTURE_REPEAT = 14;
 
@@ -16,7 +17,7 @@ export class GroundView {
 
     this.object = new THREE.Mesh(
       new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE),
-      new THREE.MeshLambertMaterial({ color: 0x8c8c8c, map: texture }),
+      new THREE.MeshLambertMaterial({ color: GROUND_COLOR, map: texture }),
     );
     this.object.rotation.x = -Math.PI / 2;
   }
