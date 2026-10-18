@@ -49,7 +49,7 @@ export class Game {
     this.lastTime = now;
     this.update(dt);
     this.horseView.update(this.horse);
-    this.renderer.follow(this.horse.x, this.horse.z);
+    this.renderer.follow(this.horse.x, this.horse.z, dt);
     this.renderer.render();
   };
 }

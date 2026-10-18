@@ -1,20 +1,26 @@
 /** Units per second at full gallop. */
 const MAX_SPEED = 7;
-/** How fast the horse gains speed while a direction is held (units/s²). */
-const ACCELERATION = 20;
-/** How fast it slows down when no direction is held (units/s²). */
-const DECELERATION = 14;
-/** Maximum turning rate of the body (radians/s). */
-const TURN_SPEED = 10;
-/** Below this speed the heading stays as it is. */
-const MIN_TURN_SPEED = 0.1;
+/** How quickly speed approaches its target while a direction is held (1/s). Higher = snappier. */
+const SPEED_RESPONSE = 3.5;
+/** How quickly the horse coasts to a stop when no direction is held (1/s). */
+const BRAKE_RESPONSE = 3;
+/** Below this speed a coasting horse comes to a full stop. */
+const STOP_SPEED = 0.05;
+/** Turning rate when standing or walking (radians/s): can turn almost on the spot. */
+const TURN_SLOW = 6;
+/** Turning rate at full gallop (radians/s): only wide arcs. */
+const TURN_FAST = 2.5;
+/** Lowest speed factor in sharp turns; a U-turn slows down to this share of MAX_SPEED. */
+const CORNER_SPEED_MIN = 0.25;
 
-/** Horse state on the ground plane. Pure logic, no rendering. */
+/**
+ * Horse state on the ground plane. Pure logic, no rendering.
+ * The horse always runs forward along its heading; the input only says where it wants to go.
+ */
 export class Horse {
   x = 0;
   z = 0;
-  vx = 0;
-  vz = 0;
+  speed = 0;
   /**
    * Facing angle around the Y axis, in radians. 0 faces +X,
    * positive values turn towards -Z (same convention as Three.js rotation.y).
@@ -24,8 +30,12 @@ export class Horse {
   private dirX = 0;
   private dirZ = 0;
 
-  get speed(): number {
-    return Math.hypot(this.vx, this.vz);
+  get vx(): number {
+    return Math.cos(this.heading) * this.speed;
+  }
+
+  get vz(): number {
+    return -Math.sin(this.heading) * this.speed;
   }
 
   /** Desired movement direction, normalized or (0, 0) for none. */
@@ -35,36 +45,36 @@ export class Horse {
   }
 
   update(dt: number): void {
-    this.updateVelocity(dt);
+    const wantsToMove = this.dirX !== 0 || this.dirZ !== 0;
+    const targetSpeed = wantsToMove ? this.steer(dt) : 0;
+    this.updateSpeed(targetSpeed, wantsToMove ? SPEED_RESPONSE : BRAKE_RESPONSE, dt);
     this.x += this.vx * dt;
     this.z += this.vz * dt;
-    this.updateHeading(dt);
   }
 
-  /** Moves the velocity towards the target velocity by a fixed rate. */
-  private updateVelocity(dt: number): void {
-    const moving = this.dirX !== 0 || this.dirZ !== 0;
-    const targetX = this.dirX * MAX_SPEED;
-    const targetZ = this.dirZ * MAX_SPEED;
-    const dx = targetX - this.vx;
-    const dz = targetZ - this.vz;
-    const gap = Math.hypot(dx, dz);
-    const step = (moving ? ACCELERATION : DECELERATION) * dt;
-    if (gap <= step) {
-      this.vx = targetX;
-      this.vz = targetZ;
-    } else {
-      this.vx += (dx / gap) * step;
-      this.vz += (dz / gap) * step;
-    }
+  /** Turns towards the desired direction and returns the speed the horse aims for. */
+  private steer(dt: number): number {
+    const desired = Math.atan2(-this.dirZ, this.dirX);
+    const t = Math.min(1, this.speed / MAX_SPEED);
+    const maxStep = (TURN_SLOW + (TURN_FAST - TURN_SLOW) * t) * dt;
+    this.heading += clamp(angleDiff(desired, this.heading), -maxStep, maxStep);
+    // The further the horse still has to turn, the more it slows down.
+    const remaining = angleDiff(desired, this.heading);
+    return MAX_SPEED * clamp(Math.cos(remaining), CORNER_SPEED_MIN, 1);
   }
 
-  /** Turns the body towards the direction of travel, along the shorter way. */
-  private updateHeading(dt: number): void {
-    if (this.speed < MIN_TURN_SPEED) return;
-    const target = Math.atan2(-this.vz, this.vx);
-    const diff = Math.atan2(Math.sin(target - this.heading), Math.cos(target - this.heading));
-    const maxStep = TURN_SPEED * dt;
-    this.heading += Math.max(-maxStep, Math.min(maxStep, diff));
+  /** Exponential approach: quick start, soft settling, smooth coasting. */
+  private updateSpeed(target: number, response: number, dt: number): void {
+    this.speed += (target - this.speed) * (1 - Math.exp(-response * dt));
+    if (target === 0 && this.speed < STOP_SPEED) this.speed = 0;
   }
+}
+
+/** Signed shortest difference a - b, in (-PI, PI]. */
+function angleDiff(a: number, b: number): number {
+  return Math.atan2(Math.sin(a - b), Math.cos(a - b));
+}
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
 }
