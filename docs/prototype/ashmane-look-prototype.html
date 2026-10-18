@@ -1,0 +1,632 @@
+<title>Feuerwald Look</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: eine Bühne mit dem Bild, darunter Palette und Regler. Bewusst dunkel, passend zum Spiel. */
+:root {
+  --bg: #0b0b0c;
+  --fg: #ece9e6;
+  --muted: #8f8b87;
+  --line: #29292d;
+  --pink: #ffa3d4;
+  --fire: #941010;
+  --font-display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-mono); font-size: 13px; line-height: 1.55;
+  padding-block: 28px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 24px; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 5vw, 44px); letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+.sub { color: var(--muted); letter-spacing: 0.04em; font-size: 12px; }
+.stage { position: relative; width: 100%; height: clamp(300px, 64vh, 680px); background: #000; border: 1px solid var(--line); overflow: hidden; }
+.stage canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+.fail { margin: 0; padding: 24px; color: var(--muted); }
+.palette { display: flex; flex-wrap: wrap; gap: 10px 22px; color: var(--muted); font-size: 12px; }
+.palette span { display: inline-flex; align-items: center; gap: 8px; }
+.palette i { width: 14px; height: 14px; border: 1px solid var(--line); display: inline-block; }
+.panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px 28px; align-items: end; }
+.ctl { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ctl .row { display: flex; justify-content: space-between; gap: 8px; text-transform: uppercase; letter-spacing: 0.1em; font-size: 11px; color: var(--muted); }
+.ctl output { color: var(--fg); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--pink); }
+.check { display: flex; align-items: center; gap: 10px; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+input[type="checkbox"] { accent-color: var(--pink); width: 16px; height: 16px; }
+.seg { display: inline-flex; border: 1px solid var(--line); width: max-content; }
+.seg label { position: relative; display: block; }
+.seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.seg span { display: block; padding: 8px 20px; letter-spacing: 0.1em; font-size: 12px; color: var(--muted); }
+.seg input:checked + span { background: var(--pink); color: #14090f; }
+.seg input:focus-visible + span { outline: 2px solid var(--pink); outline-offset: 2px; }
+button { font: inherit; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; background: transparent; color: var(--fg); border: 1px solid var(--line); padding: 8px 16px; cursor: pointer; width: max-content; }
+button:hover { border-color: var(--pink); color: var(--pink); }
+input:focus-visible, button:focus-visible { outline: 2px solid var(--pink); outline-offset: 3px; }
+.note { margin: 0; color: var(--muted); max-width: 72ch; font-size: 12px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Feuerwald</h1>
+    <div class="sub">Look-Prototyp mit Dithering, noch nicht spielbar</div>
+  </header>
+  <div class="stage" id="stage"></div>
+  <div class="palette">
+    <span><i style="background:#000"></i>Schwarz</span>
+    <span><i style="background:#ededed"></i>Weiss</span>
+    <span><i style="background:var(--fire)"></i>Feuer, dunkelrot</span>
+    <span><i style="background:var(--pink)"></i>Pferd, Cotton Candy</span>
+  </div>
+  <div class="panel">
+    <div class="seg" role="radiogroup" aria-label="Ansicht">
+      <label><input type="radio" name="mode" value="3d" checked><span>3D</span></label>
+      <label><input type="radio" name="mode" value="2d"><span>2D</span></label>
+    </div>
+    <div class="ctl">
+      <div class="row"><label for="px">Pixelgrösse</label><output id="pxo">3</output></div>
+      <input id="px" type="range" min="1" max="6" step="1" value="3">
+    </div>
+    <div class="ctl">
+      <div class="row"><label for="ex">Helligkeit</label><output id="exo">1.0</output></div>
+      <input id="ex" type="range" min="0.5" max="2" step="0.05" value="1">
+    </div>
+    <div class="ctl">
+      <div class="row"><label for="fi">Feuerlicht</label><output id="fio">1.0</output></div>
+      <input id="fi" type="range" min="0" max="2" step="0.1" value="1">
+    </div>
+    <div class="ctl">
+      <div class="row"><label for="sp">Ausbreitung</label><output id="spo">1.0</output></div>
+      <input id="sp" type="range" min="0.25" max="3" step="0.05" value="1">
+    </div>
+    <label class="check"><input id="walk" type="checkbox" checked>Pferd läuft</label>
+    <button id="restart" type="button">Neuer Wald</button>
+  </div>
+  <p class="note">Das Feuer breitet sich Feld für Feld aus: Gras, Boden und ganze Bäume (Krone und Stamm) brennen und bleiben danach verkohlt. Brennende Stellen versperren Wege. Das Pferd läuft hier nur im Kreis, damit du den Look siehst. Das Dither-Muster liegt fest auf dem Bildschirm und flimmert bei Bewegung leicht.</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  var stage = document.getElementById('stage');
+  var renderer;
+  try { renderer = new THREE.WebGLRenderer({ antialias: false }); }
+  catch (e) { stage.innerHTML = '<p class="fail">WebGL ist in diesem Browser nicht verfügbar.</p>'; return; }
+  renderer.setPixelRatio(1);
+  stage.appendChild(renderer.domElement);
+
+  var N = 48, CELL = 1.6, HALF = N * CELL / 2, TREE_N = 120, PATH_R = 9.5, RATE = 0.1;
+  var GROUND_MAX = 1400;
+  var SEEDS = [[13, 0.5], [12.6, 2.1], [14, 3.4], [13.2, 4.6], [17, 1.3], [18, 5.5]];
+
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function cellOf(x, z) { var i = Math.floor((x + HALF) / CELL), j = Math.floor((z + HALF) / CELL); return (i < 0 || j < 0 || i >= N || j >= N) ? -1 : j * N + i; }
+  function cellX(c) { return ((c % N) + 0.5) * CELL - HALF; }
+  function cellZ(c) { return (((c / N) | 0) + 0.5) * CELL - HALF; }
+  function smooth(a, b, x) { var t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
+
+  /* ================= Spielzustand: Wald und Feuer ================= */
+  class FireSim {
+    constructor() {
+      this.cellState = new Uint8Array(N * N);   // 0 frisch, 1 brennt, 2 verbrannt
+      this.age = new Float32Array(N * N);
+      this.dur = new Float32Array(N * N);
+      this.cellTree = new Int16Array(N * N);
+      this.version = 0; this.seed = 7; this.restartIn = -1;
+      this.reset(7); this.prime();
+    }
+    reset(seed) {
+      this.seed = seed; this.version++;
+      var rand = this.rand = mulberry32(seed);
+      this.cellState.fill(0); this.age.fill(0); this.dur.fill(0); this.cellTree.fill(-1);
+      this.trees = []; this.burning = []; this.restartIn = -1;
+      for (var n = 0; n < 5000 && this.trees.length < TREE_N; n++) {
+        var x = (rand() - 0.5) * 74, z = (rand() - 0.5) * 74, r = Math.sqrt(x * x + z * z);
+        if (r < 5 || (r > 7.2 && r < 11.8)) continue;
+        var c = cellOf(x, z);
+        if (c < 0 || this.cellTree[c] >= 0) continue;
+        var ok = true;
+        for (var k = 0; k < this.trees.length; k++) { var dx = this.trees[k].x - x, dz = this.trees[k].z - z; if (dx * dx + dz * dz < 5.8) { ok = false; break; } }
+        if (!ok) continue;
+        this.cellTree[c] = this.trees.length;
+        this.trees.push({ x: x, z: z, s: 0.85 + rand() * 0.6, ry: rand() * 6.28, type: rand() < 0.5 ? 0 : 1, cell: c, idx: 0, lastF: -1 });
+      }
+      var cnt = [0, 0];
+      this.trees.forEach(function (t) { t.idx = cnt[t.type]++; });
+      this.typeCount = cnt;
+      for (var s = 0; s < SEEDS.length; s++) { var cc = cellOf(SEEDS[s][0] * Math.cos(SEEDS[s][1]), SEEDS[s][0] * Math.sin(SEEDS[s][1])); if (cc >= 0) this.ignite(cc); }
+    }
+    ignite(c) {
+      if (this.cellState[c] !== 0) return;
+      this.cellState[c] = 1; this.age[c] = 0;
+      this.dur[c] = this.cellTree[c] >= 0 ? 13 + this.rand() * 5 : 6 + this.rand() * 3;
+      this.burning.push(c);
+    }
+    k(c) { return Math.max(0, Math.min(1, this.age[c] / 1.2) * Math.min(1, (this.dur[c] - this.age[c]) / 2.2)); }
+    update(dt, spread) {
+      var list = this.burning; this.burning = [];
+      for (var q = 0; q < list.length; q++) {
+        var c = list[q]; this.age[c] += dt;
+        if (this.age[c] >= this.dur[c]) { this.cellState[c] = 2; continue; }
+        this.burning.push(c);
+        var ramp = Math.min(1, this.age[c] / 1.5), ci = c % N, cj = (c / N) | 0;
+        for (var dj = -1; dj <= 1; dj++) for (var di = -1; di <= 1; di++) {
+          if (!di && !dj) continue;
+          var ni = ci + di, nj = cj + dj;
+          if (ni < 0 || nj < 0 || ni >= N || nj >= N) continue;
+          var nc = nj * N + ni;
+          if (this.cellState[nc] !== 0) continue;
+          var p = RATE * spread * dt * ramp * (this.cellTree[nc] >= 0 ? 2.5 : 1) * ((di && dj) ? 0.7 : 1);
+          if (this.rand() < p) this.ignite(nc);
+        }
+      }
+    }
+    prime() { for (var i = 0; i < 40; i++) this.update(0.5, 1); }
+    tick(dt, spread) {
+      this.update(dt, spread);
+      if (this.burning.length === 0) {
+        this.restartIn = this.restartIn < 0 ? 4 : this.restartIn - dt;
+        if (this.restartIn <= 0) { this.reset(this.seed + 1); this.prime(); }
+      } else this.restartIn = -1;
+    }
+  }
+  var sim = new FireSim();
+
+  /* ================= Gemeinsames ================= */
+  var rt = new THREE.WebGLRenderTarget(4, 4, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, format: THREE.RGBAFormat });
+  var c2 = document.createElement('canvas'); c2.width = c2.height = 4;
+  var ctx = c2.getContext('2d');
+  var tex2 = new THREE.CanvasTexture(c2);
+  tex2.minFilter = tex2.magFilter = THREE.NearestFilter; tex2.generateMipmaps = false;
+
+  var burnCv = document.createElement('canvas'); burnCv.width = burnCv.height = N;
+  var burnCtx = burnCv.getContext('2d');
+  var burnTex = new THREE.CanvasTexture(burnCv);
+  burnTex.minFilter = burnTex.magFilter = THREE.NearestFilter; burnTex.generateMipmaps = false;
+
+  var rand0 = mulberry32(99);
+  var gcv = document.createElement('canvas'); gcv.width = gcv.height = 256;
+  var gcx = gcv.getContext('2d');
+  gcx.fillStyle = 'rgb(150,150,150)'; gcx.fillRect(0, 0, 256, 256);
+  for (var gi = 0; gi < 700; gi++) {
+    var gg = Math.floor(60 + rand0() * 130);
+    gcx.globalAlpha = 0.25; gcx.fillStyle = 'rgb(' + gg + ',' + gg + ',' + gg + ')';
+    gcx.beginPath(); gcx.ellipse(rand0() * 256, rand0() * 256, 2 + rand0() * 9, 1 + rand0() * 5, rand0() * 3, 0, 6.283); gcx.fill();
+  }
+  gcx.globalAlpha = 1;
+
+  var settings = { px: 3, fire: 1, spread: 1, mode: '3d' };
+  var lights = [];
+  for (var li = 0; li < 6; li++) lights.push({ pl: null, x: 0, y: 1, z: 0, tx: 0, ty: 1, tz: 0, on: 0, want: 0 });
+  var lightTimer = 0;
+
+  /* ================= 3D-Szene ================= */
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x000000);
+  scene.fog = new THREE.FogExp2(0x000000, 0.03);
+  var camera = new THREE.PerspectiveCamera(38, 1, 0.1, 120);
+  var CAM_OFF = new THREE.Vector3(0, 12, 12);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.32));
+  var moon = new THREE.DirectionalLight(0xffffff, 0.55); moon.position.set(-12, 22, 8); scene.add(moon);
+
+  var gtex = new THREE.CanvasTexture(gcv);
+  gtex.wrapS = gtex.wrapT = THREE.RepeatWrapping; gtex.repeat.set(14, 14);
+  var ground = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), new THREE.MeshLambertMaterial({ color: 0x8c8c8c, map: gtex }));
+  ground.rotation.x = -Math.PI / 2; scene.add(ground);
+  var burnPlane = new THREE.Mesh(new THREE.PlaneGeometry(N * CELL, N * CELL), new THREE.MeshBasicMaterial({ map: burnTex, transparent: true, depthWrite: false }));
+  burnPlane.rotation.x = -Math.PI / 2; burnPlane.position.y = 0.02; scene.add(burnPlane);
+
+  function cyl(a, b, h, s) { return new THREE.CylinderGeometry(a, b, h, s); }
+  function cone(r, h, s) { return new THREE.ConeGeometry(r, h, s); }
+  var TYPES = [
+    { fr: 2.0, fh: 5.6, parts: [   // Kiefer
+      { geo: cyl(0.2, 0.3, 1.4, 6), y: 0.7, color: 0x555555, flat: true, fol: false },
+      { geo: cone(1.6, 1.9, 8), y: 2.0, color: 0x8a8a8a, flat: true, fol: true },
+      { geo: cone(1.3, 1.7, 8), y: 3.0, color: 0x8a8a8a, flat: true, fol: true },
+      { geo: cone(1.0, 1.5, 8), y: 3.9, color: 0x8a8a8a, flat: true, fol: true },
+      { geo: cone(0.65, 1.3, 8), y: 4.7, color: 0x8a8a8a, flat: true, fol: true } ] },
+    { fr: 2.3, fh: 5.0, parts: [   // Laubbaum
+      { geo: cyl(0.28, 0.38, 1.8, 6), y: 0.9, color: 0x4d4d4d, flat: true, fol: false },
+      { geo: new THREE.IcosahedronGeometry(1.55, 1), y: 3.2, ox: 0, oz: 0, color: 0x8a8a8a, flat: false, fol: true },
+      { geo: new THREE.IcosahedronGeometry(1.1, 1), y: 2.6, ox: 0.95, oz: 0.45, color: 0x8a8a8a, flat: false, fol: true },
+      { geo: new THREE.IcosahedronGeometry(1.15, 1), y: 2.7, ox: -0.9, oz: -0.4, color: 0x8a8a8a, flat: false, fol: true } ] }
+  ];
+  var treeMeshes = [[], []];
+  TYPES.forEach(function (T, ty) {
+    T.parts.forEach(function (p) {
+      var im = new THREE.InstancedMesh(p.geo, new THREE.MeshLambertMaterial({ color: p.color, flatShading: p.flat }), TREE_N);
+      im.frustumCulled = false; scene.add(im); treeMeshes[ty].push(im);
+    });
+  });
+  var dummy = new THREE.Object3D(), dm = new THREE.Object3D();
+  function placeTree(t, f) {
+    var T = TYPES[t.type], cs = Math.cos(t.ry), sn = Math.sin(t.ry);
+    for (var pi = 0; pi < T.parts.length; pi++) {
+      var p = T.parts[pi], sc = p.fol ? t.s * Math.max(f, 0.0001) : t.s;
+      var ox = (p.ox || 0) * t.s, oz = (p.oz || 0) * t.s;
+      dummy.position.set(t.x + ox * cs + oz * sn, p.y * t.s, t.z - ox * sn + oz * cs);
+      dummy.rotation.set(0, t.ry, 0); dummy.scale.set(sc, sc, sc); dummy.updateMatrix();
+      var im = treeMeshes[t.type][pi]; im.setMatrixAt(t.idx, dummy.matrix); im.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  /* Flammen */
+  var flameGeo = new THREE.ConeGeometry(1, 1, 7); flameGeo.translate(0, 0.5, 0);
+  var gflameGeo = new THREE.ConeGeometry(0.62, 1, 5); gflameGeo.translate(0, 0.5, 0);
+  var glowGeo = new THREE.CircleGeometry(0.95, 10); glowGeo.rotateX(-Math.PI / 2);
+  function fmat() { return new THREE.MeshBasicMaterial({ color: 0xff1f1f }); }
+  var mA = fmat(), mB = fmat(), mC = fmat(), mGF = fmat(), mGG = fmat();
+  function inst(geo, mat, n) { var m = new THREE.InstancedMesh(geo, mat, n); m.frustumCulled = false; m.count = 0; scene.add(m); return m; }
+  var fA = inst(flameGeo, mA, TREE_N), fB = inst(flameGeo, mB, TREE_N), fC = inst(flameGeo, mC, TREE_N);
+  var gF = inst(gflameGeo, mGF, GROUND_MAX), gG = inst(glowGeo, mGG, GROUND_MAX);
+  function setFire(m, k) { m.color.setRGB(k, k * 0.12, k * 0.12); }
+
+  /* Lichter */
+  lights.forEach(function (L) { L.pl = new THREE.PointLight(0xffffff, 0, 18, 1.5); scene.add(L.pl); });
+
+  /* Funken */
+  var EMB = 170, epos = new Float32Array(EMB * 3), eMeta = [];
+  for (var e = 0; e < EMB; e++) eMeta.push({ x: 0, z: 0, y: 99, sp: 1.2 + Math.random() * 2, dr: (Math.random() - 0.5) * 0.8 });
+  var egeo = new THREE.BufferGeometry(); egeo.setAttribute('position', new THREE.BufferAttribute(epos, 3));
+  var embers = new THREE.Points(egeo, new THREE.PointsMaterial({ color: new THREE.Color(1, 0.12, 0.12), size: 2, sizeAttenuation: false }));
+  embers.frustumCulled = false; scene.add(embers);
+
+  /* Pferd (3D) */
+  var pinkMat = new THREE.MeshLambertMaterial({ color: 0xffa3d4 });
+  var maneMat = new THREE.MeshLambertMaterial({ color: 0xe6e6e6 });
+  var hoofMat = new THREE.MeshLambertMaterial({ color: 0x777777 });
+  function M(geo, mat, x, y, z) { var m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); return m; }
+  function sph() { return new THREE.SphereGeometry(1, 16, 12); }
+  var horse = new THREE.Group();
+  var part;
+  part = M(sph(), pinkMat, 0, 1.4, 0); part.scale.set(1.05, 0.52, 0.42); horse.add(part);
+  part = M(sph(), pinkMat, 0.6, 1.42, 0); part.scale.set(0.55, 0.56, 0.42); horse.add(part);
+  part = M(sph(), pinkMat, -0.65, 1.45, 0); part.scale.set(0.55, 0.56, 0.43); horse.add(part);
+  part = M(cyl(0.17, 0.3, 1.1, 10), pinkMat, 0.98, 2.0, 0); part.rotation.z = -0.65; horse.add(part);
+  part = M(sph(), pinkMat, 1.5, 2.45, 0); part.scale.set(0.45, 0.27, 0.25); part.rotation.z = -0.45; horse.add(part);
+  part = M(cyl(0.12, 0.17, 0.45, 8), pinkMat, 1.85, 2.28, 0); part.rotation.z = -1.25; horse.add(part);
+  part = M(cone(0.07, 0.25, 5), pinkMat, 1.3, 2.75, 0.1); horse.add(part);
+  part = M(cone(0.07, 0.25, 5), pinkMat, 1.3, 2.75, -0.1); horse.add(part);
+  [[0.62, 1.95], [0.8, 2.25], [0.98, 2.5], [1.15, 2.7]].forEach(function (m) { var mp = M(cone(0.11, 0.45, 4), maneMat, m[0], m[1], 0); mp.rotation.z = 0.55; horse.add(mp); });
+  part = M(cyl(0.05, 0.16, 1.0, 6), maneMat, -1.52, 1.16, 0); part.rotation.z = 2.3; horse.add(part);
+  var legs = [];
+  [[0.65, 0.22, 0], [0.65, -0.22, Math.PI], [-0.7, 0.22, Math.PI], [-0.7, -0.22, 0]].forEach(function (l) {
+    var pivot = new THREE.Group(); pivot.position.set(l[0], 1.15, l[1]);
+    pivot.add(M(cyl(0.16, 0.11, 0.6, 8), pinkMat, 0, -0.3, 0));
+    var knee = new THREE.Group(); knee.position.set(0, -0.6, 0);
+    knee.add(M(cyl(0.1, 0.075, 0.6, 8), pinkMat, 0, -0.3, 0));
+    knee.add(M(cyl(0.09, 0.1, 0.12, 8), hoofMat, 0, -0.64, 0));
+    pivot.add(knee); horse.add(pivot); legs.push({ g: pivot, k: knee, ph: l[2] });
+  });
+  horse.scale.setScalar(1.25); scene.add(horse);
+  var horseLight = new THREE.PointLight(0xffffff, 0.5, 9, 1.5); scene.add(horseLight);
+
+  /* ================= Dithering-Pass ================= */
+  var post = new THREE.ShaderMaterial({
+    uniforms: { tDiffuse: { value: rt.texture }, res: { value: new THREE.Vector2(4, 4) }, exposure: { value: 1 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }',
+    fragmentShader: [
+      'uniform sampler2D tDiffuse; uniform vec2 res; uniform float exposure; varying vec2 vUv;',
+      'float bayer2(vec2 a){ a = floor(a); return fract(a.x / 2. + a.y * a.y * .75); }',
+      'float bayer4(vec2 a){ return bayer2(.5 * a) * .25 + bayer2(a); }',
+      'float bayer8(vec2 a){ return bayer4(.5 * a) * .25 + bayer2(a); }',
+      'void main(){',
+      '  vec3 c = texture2D(tDiffuse, vUv).rgb;',
+      '  float mx = max(c.r, max(c.g, c.b)); float mn = min(c.r, min(c.g, c.b));',
+      '  float sat = (mx - mn) / max(mx, 0.0001);',
+      '  vec2 q = vUv - .5; float vig = clamp(1. - dot(q, q) * 1.3, 0., 1.);',
+      '  float t = bayer8(floor(vUv * res));',
+      '  vec3 col = vec3(0.);',
+      '  if (mx > 0.015) {',
+      '    if (sat < .12) { float v = dot(c, vec3(.299, .587, .114)) * exposure * vig; col = v > t ? vec3(.93) : vec3(.02); }',
+      '    else if ((c.b - c.g) / mx > .08) { float v = mx * exposure * vig * 1.15; col = v > t ? vec3(1., .64, .83) : vec3(.04, .01, .03); }',
+      '    else { float v = mx * vig; col = v > t ? vec3(.58, .04, .05) : vec3(0.); }',
+      '  }',
+      '  gl_FragColor = vec4(col, 1.);',
+      '}'
+    ].join('\n'),
+    depthTest: false, depthWrite: false
+  });
+  var postScene = new THREE.Scene();
+  var postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post));
+
+  /* ================= Regler ================= */
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var walkEl = document.getElementById('walk'); walkEl.checked = !reduced;
+  function bind(id, outId, fn, digits) {
+    var el = document.getElementById(id), out = document.getElementById(outId);
+    function upd() { var v = parseFloat(el.value); out.textContent = v.toFixed(digits); fn(v); }
+    el.addEventListener('input', upd); upd();
+  }
+  function resize() {
+    var w = Math.max(1, stage.clientWidth), h = Math.max(1, stage.clientHeight);
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h; camera.updateProjectionMatrix();
+    var rw = Math.max(1, Math.ceil(w / settings.px)), rh = Math.max(1, Math.ceil(h / settings.px));
+    rt.setSize(rw, rh); c2.width = rw; c2.height = rh; post.uniforms.res.value.set(rw, rh);
+  }
+  bind('px', 'pxo', function (v) { settings.px = v; resize(); }, 0);
+  bind('ex', 'exo', function (v) { post.uniforms.exposure.value = v; }, 1);
+  bind('fi', 'fio', function (v) { settings.fire = v; }, 1);
+  bind('sp', 'spo', function (v) { settings.spread = v; }, 1);
+  Array.prototype.forEach.call(document.querySelectorAll('input[name=mode]'), function (el) {
+    el.addEventListener('change', function () {
+      if (!el.checked) return;
+      settings.mode = el.value;
+      post.uniforms.tDiffuse.value = settings.mode === '3d' ? rt.texture : tex2;
+    });
+  });
+  document.getElementById('restart').addEventListener('click', function () { sim.reset(sim.seed + 1); sim.prime(); });
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(stage); else window.addEventListener('resize', resize);
+  resize();
+
+  /* ================= Hilfen pro Bild ================= */
+  var viewVer = -1;
+  function syncViews() {
+    if (viewVer === sim.version) return;
+    viewVer = sim.version;
+    sim.trees.forEach(function (t) { placeTree(t, 1); t.lastF = 1; });
+    treeMeshes[0].forEach(function (im) { im.count = sim.typeCount[0]; });
+    treeMeshes[1].forEach(function (im) { im.count = sim.typeCount[1]; });
+    burnCtx.clearRect(0, 0, N, N); burnPrev = new Uint8Array(N * N);
+  }
+  var burnPrev = new Uint8Array(N * N);
+  function updateBurnMap() {
+    var changed = false;
+    for (var c = 0; c < N * N; c++) {
+      if (sim.cellState[c] === 2 && !burnPrev[c]) {
+        burnPrev[c] = 1; changed = true;
+        burnCtx.fillStyle = 'rgba(0,0,0,' + (0.62 + 0.3 * (((c * 2654435761) >>> 0) % 100) / 100).toFixed(2) + ')';
+        burnCtx.fillRect(c % N, (c / N) | 0, 1, 1);
+      }
+    }
+    if (changed) burnTex.needsUpdate = true;
+  }
+  function updateLights(dt, time) {
+    var L = sim.burning, n = L.length;
+    lightTimer -= dt;
+    if (lightTimer <= 0) {
+      lightTimer = 0.5;
+      for (var j = 0; j < lights.length; j++) {
+        if (!n) { lights[j].want = 0; continue; }
+        var pick = L[Math.floor(Math.random() * n)];
+        for (var tr = 0; tr < 12; tr++) {
+          var cand = L[Math.floor(Math.random() * n)], dx = cellX(cand) - horse.position.x, dz = cellZ(cand) - horse.position.z;
+          pick = cand; if (dx * dx + dz * dz < 484) break;
+        }
+        lights[j].tx = cellX(pick); lights[j].tz = cellZ(pick); lights[j].ty = sim.cellTree[pick] >= 0 ? 2.4 : 1.0; lights[j].want = 1;
+      }
+    }
+    var a = 1 - Math.exp(-dt * 2.5);
+    for (var i = 0; i < lights.length; i++) {
+      var Lt = lights[i];
+      Lt.x += (Lt.tx - Lt.x) * a; Lt.y += (Lt.ty - Lt.y) * a; Lt.z += (Lt.tz - Lt.z) * a; Lt.on += (Lt.want - Lt.on) * a;
+      Lt.pl.position.set(Lt.x, Lt.y, Lt.z);
+      Lt.pl.intensity = Lt.on * settings.fire * (1.1 + 0.5 * (0.5 + 0.5 * Math.sin(time * 9 + i * 2)));
+    }
+  }
+  function glowAt(x, z) {
+    var g = 0;
+    for (var j = 0; j < lights.length; j++) { var L = lights[j]; if (L.on <= 0.01) continue; var dx = x - L.x, dz = z - L.z; g += L.on / (1 + (dx * dx + dz * dz) / 14); }
+    return Math.min(g * settings.fire * 0.7, 1.2);
+  }
+
+  /* ================= 3D-Bild ================= */
+  function render3D(dt, time) {
+    setFire(mA, 0.6 + 0.4 * (0.5 + 0.5 * Math.sin(time * 9)));
+    setFire(mB, 0.6 + 0.4 * (0.5 + 0.5 * Math.sin(time * 7.3 + 1.3)));
+    setFire(mC, 0.6 + 0.4 * (0.5 + 0.5 * Math.sin(time * 11 + 2.1)));
+    setFire(mGF, 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(time * 8.2 + 0.7)));
+    setFire(mGG, 0.3 + 0.12 * Math.sin(time * 5));
+
+    var bt = 0;
+    sim.trees.forEach(function (t) {
+      var c = t.cell, st = sim.cellState[c], f = 1, T = TYPES[t.type];
+      if (st === 2) f = 0;
+      else if (st === 1) {
+        var p = sim.age[c] / sim.dur[c], k = sim.k(c);
+        f = 1 - smooth(0.5, 0.95, p);
+        var fl = 0.8 + 0.25 * Math.sin(time * 9 + t.ry * 3) + 0.1 * Math.sin(time * 17 + t.x);
+        var hh = (0.35 + 0.65 * k) * fl, wd = T.fr * t.s * (0.85 + 0.15 * fl);
+        dm.rotation.set(0, time * 1.2 + t.ry, 0);
+        dm.position.set(t.x, 0, t.z); dm.scale.set(wd, T.fh * t.s * hh, wd); dm.updateMatrix(); fA.setMatrixAt(bt, dm.matrix);
+        dm.position.set(t.x + 0.7 * t.s, 0, t.z + 0.4 * t.s); dm.scale.set(t.s, T.fh * 0.7 * t.s * hh * (0.8 + 0.4 * Math.sin(time * 11 + t.x)), t.s); dm.updateMatrix(); fB.setMatrixAt(bt, dm.matrix);
+        dm.position.set(t.x - 0.6 * t.s, 0, t.z - 0.5 * t.s); dm.scale.set(0.9 * t.s, T.fh * 0.8 * t.s * hh * (0.8 + 0.4 * Math.sin(time * 13 + t.z)), 0.9 * t.s); dm.updateMatrix(); fC.setMatrixAt(bt, dm.matrix);
+        bt++;
+      }
+      if (f !== t.lastF) { placeTree(t, f); t.lastF = f; }
+    });
+    fA.count = fB.count = fC.count = bt;
+    fA.instanceMatrix.needsUpdate = fB.instanceMatrix.needsUpdate = fC.instanceMatrix.needsUpdate = true;
+
+    var bg = 0, B = sim.burning;
+    for (var i = 0; i < B.length && bg < GROUND_MAX; i++) {
+      var c = B[i];
+      if (sim.cellTree[c] >= 0) continue;
+      var k2 = sim.k(c), fl2 = 0.7 + 0.3 * Math.sin(time * 8 + c) + 0.15 * Math.sin(time * 15 + c * 0.7);
+      dm.rotation.set(0, c, 0);
+      dm.position.set(cellX(c), 0, cellZ(c)); dm.scale.set(1, (0.5 + 1.1 * k2) * fl2, 1); dm.updateMatrix(); gF.setMatrixAt(bg, dm.matrix);
+      var gs = (0.95 + 0.2 * fl2) * (0.5 + 0.5 * k2);
+      dm.position.set(cellX(c), 0.03, cellZ(c)); dm.scale.set(gs, 1, gs); dm.updateMatrix(); gG.setMatrixAt(bg, dm.matrix);
+      bg++;
+    }
+    gF.count = gG.count = bg; gF.instanceMatrix.needsUpdate = gG.instanceMatrix.needsUpdate = true;
+
+    for (var q = 0; q < EMB; q++) {
+      var m = eMeta[q];
+      m.y += m.sp * dt;
+      if (m.y > 6.5) {
+        if (B.length) { var cc = B[Math.floor(Math.random() * B.length)]; m.x = cellX(cc) + (Math.random() - 0.5) * 1.4; m.z = cellZ(cc) + (Math.random() - 0.5) * 1.4; m.y = 0.3; }
+        else m.y = 99;
+      }
+      epos[q * 3] = m.x + Math.sin(time * 2 + q) * m.dr * 0.5 * (m.y / 6);
+      epos[q * 3 + 1] = m.y < 90 ? m.y : -50; epos[q * 3 + 2] = m.z;
+    }
+    egeo.attributes.position.needsUpdate = true;
+
+    horseLight.position.set(horse.position.x, 4, horse.position.z);
+    camera.position.set(horse.position.x + CAM_OFF.x, CAM_OFF.y, horse.position.z + CAM_OFF.z);
+    camera.lookAt(horse.position.x, 1, horse.position.z);
+
+    renderer.setRenderTarget(rt);
+    renderer.render(scene, camera);
+    renderer.setRenderTarget(null);
+  }
+
+  /* ================= 2D-Bild ================= */
+  var gpat = ctx.createPattern(gcv, 'repeat');
+  function shade(g, b) { var v = Math.min(255, Math.round(g * b)); return 'rgb(' + v + ',' + v + ',' + v + ')'; }
+  function tri(ax, ay, bx, by, cx, cy) { ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.lineTo(cx, cy); ctx.closePath(); ctx.fill(); }
+  function circ(x, y, r) { ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill(); }
+  function ell(x, y, rx, ry) { ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 6.2832); ctx.fill(); }
+  function flameShape(x, y, w, h, k, sway) {
+    ctx.fillStyle = 'rgb(' + Math.round(255 * k) + ',' + Math.round(31 * k) + ',' + Math.round(31 * k) + ')';
+    ctx.beginPath(); ctx.moveTo(x - w, y);
+    ctx.bezierCurveTo(x - w * 1.1, y - h * 0.45, x - w * 0.35, y - h * 0.65, x + sway, y - h);
+    ctx.bezierCurveTo(x + w * 0.35, y - h * 0.65, x + w * 1.1, y - h * 0.45, x + w, y);
+    ctx.closePath(); ctx.fill();
+  }
+  function drawPine(x, y, u, b) {
+    ctx.fillStyle = shade(85, b); ctx.fillRect(x - 0.2 * u, y - 1.3 * u, 0.4 * u, 1.3 * u);
+    for (var i = 0; i < 4; i++) {
+      var yb = y - (0.9 + i * 0.95) * u, hw = (1.6 - 0.3 * i) * u, ap = yb - 1.9 * u * (1 - i * 0.08);
+      ctx.fillStyle = shade(165, b); tri(x, ap, x - hw, yb, x, yb);
+      ctx.fillStyle = shade(95, b); tri(x, ap, x, yb, x + hw, yb);
+    }
+  }
+  var OAK = [[0, -3.2, 1.55], [0.95, -2.6, 1.1], [-0.9, -2.7, 1.15]];
+  function drawOak(x, y, u, b) {
+    ctx.fillStyle = shade(80, b); ctx.fillRect(x - 0.28 * u, y - 1.8 * u, 0.56 * u, 1.8 * u);
+    ctx.fillStyle = shade(100, b); OAK.forEach(function (c) { circ(x + c[0] * u, y + c[1] * u, c[2] * u); });
+    ctx.fillStyle = shade(165, b); OAK.forEach(function (c) { circ(x + c[0] * u - 0.3 * u, y + c[1] * u - 0.3 * u, c[2] * u * 0.62); });
+  }
+  function drawCharred(x, y, u) {
+    ctx.fillStyle = 'rgba(0,0,0,0.75)'; ell(x, y, 1.3 * u, 0.4 * u);
+    ctx.fillStyle = shade(55, 1); ctx.fillRect(x - 0.2 * u, y - 1.5 * u, 0.4 * u, 1.5 * u);
+    ctx.strokeStyle = shade(120, 1); ctx.lineWidth = Math.max(1, 0.09 * u); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x, y - 1.2 * u); ctx.lineTo(x - 0.9 * u, y - 2.2 * u); ctx.moveTo(x, y - 1.4 * u); ctx.lineTo(x + 0.8 * u, y - 2.4 * u); ctx.moveTo(x, y - 1.5 * u); ctx.lineTo(x + 0.1 * u, y - 2.6 * u); ctx.stroke();
+  }
+  function treeFlames(x, y, u, k, time, seed) {
+    for (var i = 0; i < 7; i++) {
+      var fl = 0.75 + 0.3 * Math.sin(time * 9 + i * 1.9 + seed);
+      var kk = Math.min(1, k * (0.55 + 0.08 * i) * (0.8 + 0.3 * fl));
+      var ox = ((i % 3) - 1) * 0.75 * u * (i < 3 ? 1 : 0.7);
+      flameShape(x + ox, y - (0.2 + i * 0.45) * u, (0.8 - 0.05 * i) * u * 0.85, (1.5 + 0.3 * i) * u * fl * (0.45 + 0.55 * k), kk, Math.sin(time * 6 + i) * 0.2 * u);
+    }
+  }
+  function drawHorse2D(x, y, S, dir, phase, walking, g) {
+    var u = S * 1.15;
+    ctx.save(); ctx.translate(x, y); ctx.scale(dir, 1);
+    function pk(f) { f = Math.min(1, f * (0.75 + 0.5 * g)); return 'rgb(' + Math.round(255 * f) + ',' + Math.round(163 * f) + ',' + Math.round(212 * f) + ')'; }
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ell(0, 0, 1.4 * u, 0.3 * u);
+    function leg(hx, ph, f) {
+      var s = walking ? Math.sin(phase + ph) : 0, a = s * 0.6, bnd = walking ? Math.max(0, Math.cos(phase + ph)) * 0.8 : 0;
+      var kx = hx * u + Math.sin(a) * 0.6 * u, ky2 = -1.25 * u + Math.cos(a) * 0.6 * u;
+      var b2 = a - bnd, fx = kx + Math.sin(b2) * 0.6 * u, fy = ky2 + Math.cos(b2) * 0.6 * u;
+      ctx.strokeStyle = pk(f); ctx.lineWidth = 0.24 * u; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(hx * u, -1.25 * u); ctx.lineTo(kx, ky2); ctx.lineTo(fx, fy); ctx.stroke();
+      ctx.strokeStyle = 'rgb(70,70,70)'; ctx.lineWidth = 0.26 * u; ctx.beginPath(); ctx.moveTo(fx, fy - 0.1 * u); ctx.lineTo(fx, fy); ctx.stroke();
+    }
+    leg(0.6, Math.PI, 0.55); leg(-0.65, 0, 0.55);
+    ctx.fillStyle = 'rgb(230,230,230)';
+    ctx.beginPath(); ctx.moveTo(-0.95 * u, -1.75 * u); ctx.bezierCurveTo(-1.7 * u, -1.9 * u, -2.0 * u, -1.2 * u, -1.8 * u, -0.4 * u); ctx.lineTo(-1.55 * u, -0.55 * u); ctx.bezierCurveTo(-1.6 * u, -1.2 * u, -1.4 * u, -1.5 * u, -0.9 * u, -1.45 * u); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = pk(0.85); ell(0, -1.5 * u, 1.05 * u, 0.55 * u);
+    ctx.fillStyle = pk(0.62); ctx.beginPath(); ctx.ellipse(0, -1.32 * u, 0.95 * u, 0.32 * u, 0, 0, 3.1416); ctx.fill();
+    ctx.fillStyle = pk(0.9);
+    ctx.beginPath(); var H = [[0.5, -1.9], [0.85, -2.8], [1.25, -3.0], [1.95, -2.6], [2.0, -2.35], [1.6, -2.25], [1.2, -2.3], [0.95, -1.7]];
+    H.forEach(function (p, i) { if (i) ctx.lineTo(p[0] * u, p[1] * u); else ctx.moveTo(p[0] * u, p[1] * u); }); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = pk(0.95); tri(1.2 * u, -2.95 * u, 1.25 * u, -3.3 * u, 1.42 * u, -2.95 * u);
+    ctx.fillStyle = 'rgb(235,235,235)';
+    ctx.beginPath(); [[0.5, -1.9], [0.8, -2.85], [1.2, -3.1], [1.15, -2.85], [0.92, -2.55], [0.62, -1.95]].forEach(function (p, i) { if (i) ctx.lineTo(p[0] * u, p[1] * u); else ctx.moveTo(p[0] * u, p[1] * u); }); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgb(20,20,20)'; circ(1.55 * u, -2.6 * u, 0.06 * u);
+    leg(0.6, 0, 0.85); leg(-0.65, Math.PI, 0.85);
+    ctx.restore();
+  }
+  var lastDir = 1;
+  function render2D(time, dt) {
+    var W = c2.width, H = c2.height, S = H / 20, ky = 0.62;
+    var cxw = horse.position.x, czw = horse.position.z, ox0 = W / 2, oy0 = H * 0.58;
+    function PX(x) { return (x - cxw) * S + ox0; }
+    function PY(z) { return (z - czw) * S * ky + oy0; }
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    var sc = 0.5, tx = ox0 - cxw * S, ty = oy0 - czw * S * ky;
+    ctx.setTransform(sc, 0, 0, sc * ky, tx, ty);
+    ctx.fillStyle = gpat; ctx.fillRect(-tx / sc, -ty / (sc * ky), W / sc, H / (sc * ky));
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, W, H);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(burnCv, 0, 0, N, N, PX(-HALF), PY(-HALF), N * CELL * S, N * CELL * S * ky);
+    for (var j = 0; j < lights.length; j++) {
+      var L = lights[j]; if (L.on <= 0.01) continue;
+      var R = 7 * S;
+      ctx.save(); ctx.translate(PX(L.x), PY(L.z)); ctx.scale(1, ky);
+      var gr = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
+      gr.addColorStop(0, 'rgba(255,255,255,' + (0.4 * L.on * Math.min(1.5, settings.fire)).toFixed(3) + ')'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gr; ctx.fillRect(-R, -R, 2 * R, 2 * R);
+      ctx.restore();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    var items = [], i;
+    for (i = 0; i < sim.trees.length; i++) {
+      var t = sim.trees[i], sx = PX(t.x), sy = PY(t.z);
+      if (sx < -80 || sx > W + 80 || sy < -20 || sy > H + 140) continue;
+      items.push({ z: t.z, t: t, x: sx, y: sy });
+    }
+    for (i = 0; i < sim.burning.length; i++) {
+      var c = sim.burning[i]; if (sim.cellTree[c] >= 0) continue;
+      var gx = PX(cellX(c)), gy = PY(cellZ(c));
+      if (gx < -40 || gx > W + 40 || gy < -20 || gy > H + 40) continue;
+      items.push({ z: cellZ(c), c: c, x: gx, y: gy });
+    }
+    var hx = PX(horse.position.x), hy = PY(horse.position.z);
+    items.push({ z: horse.position.z, h: true, x: hx, y: hy });
+    items.sort(function (a, b) { return a.z - b.z; });
+
+    items.forEach(function (it) {
+      if (it.h) {
+        var vx = -Math.sin(angle); if (Math.abs(vx) > 0.05 && walkEl.checked) lastDir = vx > 0 ? 1 : -1;
+        drawHorse2D(it.x, it.y, S, lastDir, phase, walkEl.checked, glowAt(horse.position.x, horse.position.z));
+      } else if (it.c !== undefined) {
+        var c2i = it.c, k = sim.k(c2i), cw = CELL * S;
+        ctx.fillStyle = 'rgb(' + Math.round(255 * k * 0.4) + ',' + Math.round(31 * k * 0.4) + ',' + Math.round(31 * k * 0.4) + ')';
+        ell(it.x, it.y, cw * 0.75, cw * 0.75 * ky);
+        for (var f = 0; f < 3; f++) {
+          var fl = 0.7 + 0.3 * Math.sin(time * 8 + c2i + f * 2);
+          flameShape(it.x + (f - 1) * cw * 0.3, it.y + (f % 2) * cw * 0.12, cw * 0.28, cw * (0.5 + 0.7 * k) * fl * (1 - f * 0.12), Math.min(1, k * (0.7 + 0.3 * fl)), Math.sin(time * 6 + f) * 0.1 * cw);
+        }
+      } else {
+        var tr = it.t, st = sim.cellState[tr.cell], u = S * tr.s, b = 0.8 + 0.9 * glowAt(tr.x, tr.z);
+        if (st === 2 || (st === 1 && sim.age[tr.cell] / sim.dur[tr.cell] > 0.85)) drawCharred(it.x, it.y, u);
+        else if (tr.type === 0) drawPine(it.x, it.y, u, b); else drawOak(it.x, it.y, u, b);
+        if (st === 1) treeFlames(it.x, it.y, u, sim.k(tr.cell), time, tr.ry);
+      }
+    });
+    tex2.needsUpdate = true;
+  }
+
+  /* ================= Schleife ================= */
+  var clock = new THREE.Clock(), time = 0, angle = 0, phase = 0;
+  function frame() {
+    requestAnimationFrame(frame);
+    var dt = Math.min(clock.getDelta(), 0.05); time += dt;
+    sim.tick(dt, settings.spread);
+    syncViews(); updateBurnMap();
+    if (walkEl.checked) { angle += (3.2 / PATH_R) * dt; phase += dt * 7; }
+    horse.position.set(PATH_R * Math.cos(angle), Math.abs(Math.sin(phase)) * 0.09, PATH_R * Math.sin(angle));
+    horse.rotation.y = Math.atan2(-Math.cos(angle), -Math.sin(angle));
+    legs.forEach(function (l) {
+      var s = walkEl.checked ? Math.sin(phase + l.ph) : 0;
+      l.g.rotation.z = s * 0.75; l.k.rotation.z = walkEl.checked ? -Math.max(0, Math.cos(phase + l.ph)) * 0.9 : 0;
+    });
+    updateLights(dt, time);
+    if (settings.mode === '3d') render3D(dt, time); else render2D(time, dt);
+    renderer.render(postScene, postCam);
+  }
+  frame();
+})();
+</script>
