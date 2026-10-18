@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mulberry32 } from '../core/random';
 import type { Horse } from '../sim/Horse';
 
 const PINK = 0xffa3d4;
@@ -7,24 +8,44 @@ const HOOF = 0x777777;
 const MODEL_SCALE = 1.25;
 
 /** Leg cycle advance per unit travelled (radians). */
-const STRIDE_PER_UNIT = 2.2;
+const STRIDE_PER_UNIT = 1.25;
 /** Speed at which the legs reach their full swing. */
 const FULL_SWING_SPEED = 2.5;
 const HIP_SWING = 0.75;
 const KNEE_BEND = 0.9;
 const BOB_HEIGHT = 0.09;
 /** Head nod amplitude at full swing (radians). */
-const HEAD_NOD = 0.07;
+const HEAD_NOD = 0.7;
 /** Lean per (turn rate × speed), and its limit (radians). */
 const LEAN_FACTOR = 0.012;
 const LEAN_MAX = 0.18;
 /** How quickly the lean follows the turn (1/s). */
 const LEAN_RESPONSE = 8;
 
+const TAIL_STRANDS = 7;
+/** Segment lengths of one strand, root to tip; each strand varies them a little. */
+const TAIL_SEGMENTS = [0.45, 0.42, 0.4];
+/** How far the tail lifts and streams back at full gallop (radians). */
+const TAIL_LIFT = 0.7;
+/** Side-to-side swish when standing (radians) and its speed (1/s). */
+const TAIL_SWISH = 0.18;
+const TAIL_SWISH_SPEED = 1.4;
+/** Wave travelling down each strand (radians per segment). */
+const TAIL_WAVE = 0.12;
+
 interface Leg {
   hip: THREE.Group;
   knee: THREE.Group;
   /** Phase offset in the leg cycle. */
+  offset: number;
+}
+
+interface TailStrand {
+  /** Joint groups from root to tip; each one carries the next. */
+  joints: THREE.Group[];
+  /** Rest bend of each joint around Z, so the hair falls in a curve. */
+  bend: number[];
+  /** Phase offset so the strands do not move in lockstep. */
   offset: number;
 }
 
@@ -35,10 +56,13 @@ export class HorseView {
   private readonly body = new THREE.Group();
   private readonly head = new THREE.Group();
   private readonly legs: Leg[] = [];
+  private readonly tail = new THREE.Group();
+  private readonly tailStrands: TailStrand[] = [];
   private readonly light = new THREE.PointLight(0xffffff, 0.5 * Math.PI, 9, 1.5);
 
   private phase = 0;
   private lean = 0;
+  private time = 0;
   private lastHeading: number | null = null;
 
   constructor() {
@@ -46,9 +70,10 @@ export class HorseView {
     const mane = new THREE.MeshLambertMaterial({ color: MANE });
     const hoof = new THREE.MeshLambertMaterial({ color: HOOF });
 
-    this.buildBody(pink, mane);
+    this.buildBody(pink);
     this.buildHead(pink, mane);
     this.buildLegs(pink, hoof);
+    this.buildTail(mane);
 
     this.body.scale.setScalar(MODEL_SCALE);
     this.object.add(this.body);
@@ -68,6 +93,8 @@ export class HorseView {
     this.head.rotation.z = Math.sin(this.phase * 2) * HEAD_NOD * swing;
 
     this.updateLean(horse, dt);
+    this.time += dt;
+    this.updateTail(swing);
 
     this.object.position.set(horse.x, Math.abs(Math.sin(this.phase)) * BOB_HEIGHT * swing, horse.z);
     this.object.rotation.y = horse.heading;
@@ -87,15 +114,69 @@ export class HorseView {
     this.body.rotation.x = this.lean;
   }
 
+  /** Swishes gently when standing; lifts and streams back with a ripple when running. */
+  private updateTail(swing: number): void {
+    const idle = 1 - swing;
+    this.tail.rotation.z = -TAIL_LIFT * swing;
+    this.tail.rotation.x = Math.sin(this.time * TAIL_SWISH_SPEED) * TAIL_SWISH * idle;
+    // The ripple follows the leg cycle when running and slow time when standing.
+    const clock = this.phase * 2 * swing + this.time * TAIL_SWISH_SPEED * idle;
+    for (const strand of this.tailStrands) {
+      strand.joints.forEach((joint, i) => {
+        const wave = Math.sin(clock - i * 0.8 + strand.offset) * TAIL_WAVE * (i + 1);
+        joint.rotation.z = strand.bend[i] * (1 - 0.6 * swing) + wave * (0.4 + swing);
+        joint.rotation.x = wave * 0.5;
+      });
+    }
+  }
+
   // Model coordinates: +X is forward (head), +Y is up. Values from the look prototype.
 
-  private buildBody(pink: THREE.Material, mane: THREE.Material): void {
+  private buildBody(pink: THREE.Material): void {
     this.body.add(part(sphere(), pink, [0, 1.4, 0], [1.05, 0.52, 0.42]));
     this.body.add(part(sphere(), pink, [0.6, 1.42, 0], [0.55, 0.56, 0.42]));
     this.body.add(part(sphere(), pink, [-0.65, 1.45, 0], [0.55, 0.56, 0.43]));
-    const tail = part(new THREE.CylinderGeometry(0.05, 0.16, 1.0, 6), mane, [-1.52, 1.16, 0]);
-    tail.rotation.z = 2.3;
-    this.body.add(tail);
+  }
+
+  /**
+   * A bundle of thin tapered strands hanging from the dock. Each strand is a chain of
+   * jointed segments that fan out a little and curve down like falling hair.
+   */
+  private buildTail(mane: THREE.Material): void {
+    const rng = mulberry32(3);
+    this.tail.position.set(-1.12, 1.62, 0);
+    this.tail.add(part(sphere(), mane, [0, 0, 0], [0.17, 0.14, 0.16]));
+
+    for (let s = 0; s < TAIL_STRANDS; s++) {
+      const length = 1.0 + rng() * 0.35;
+      const root = new THREE.Group();
+      // Tilt back (negative Z) and fan out sideways (X) around the dock.
+      root.rotation.set((s / (TAIL_STRANDS - 1) - 0.5) * 0.5 + (rng() - 0.5) * 0.1, 0, -0.7 - rng() * 0.25);
+      this.tail.add(root);
+
+      const joints: THREE.Group[] = [];
+      const bend: number[] = [];
+      let parent: THREE.Object3D = root;
+      let radius = 0.1 + rng() * 0.03;
+      TAIL_SEGMENTS.forEach((baseLength, i) => {
+        const segLength = baseLength * length;
+        const tip = i === TAIL_SEGMENTS.length - 1 ? 0.006 : radius * 0.7;
+        const geometry = new THREE.CylinderGeometry(radius, tip, segLength, 5);
+        geometry.translate(0, -segLength / 2, 0); // hang down from the joint
+
+        const joint = new THREE.Group();
+        if (i > 0) joint.position.y = -TAIL_SEGMENTS[i - 1] * length;
+        joint.add(new THREE.Mesh(geometry, mane));
+        parent.add(joint);
+
+        joints.push(joint);
+        bend.push(i === 0 ? 0 : 0.22 + rng() * 0.1); // later segments curve towards vertical
+        parent = joint;
+        radius = tip;
+      });
+      this.tailStrands.push({ joints, bend, offset: rng() * Math.PI * 2 });
+    }
+    this.body.add(this.tail);
   }
 
   /** Neck, head, ears and mane hang from a pivot at the base of the neck so they can nod. */
