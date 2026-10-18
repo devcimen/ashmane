@@ -48,7 +48,7 @@ export class Game {
     const dt = Math.min((now - this.lastTime) / 1000, MAX_DT);
     this.lastTime = now;
     this.update(dt);
-    this.horseView.update(this.horse);
+    this.horseView.update(this.horse, dt);
     this.renderer.follow(this.horse.x, this.horse.z, dt);
     this.renderer.render();
   };
