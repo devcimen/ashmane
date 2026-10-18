@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { DitherPass } from './DitherPass';
 
 const CAMERA_OFFSET = new THREE.Vector3(0, 12, 12);
+/** How quickly the camera catches up with the horse (1/s). Lower = more trailing. */
+const CAMERA_RESPONSE = 5;
 
 // The dither shader classifies raw colour values, so we skip colour space
 // conversion and treat hex colours as-is (like the r128 prototype).
@@ -14,6 +16,8 @@ export class Renderer {
   readonly dither = new DitherPass(3);
   private readonly gl: THREE.WebGLRenderer;
   private readonly resizeObserver: ResizeObserver;
+  /** Smoothed point the camera looks at; null until the first follow() call. */
+  private focus: { x: number; z: number } | null = null;
 
   constructor(private readonly container: HTMLElement) {
     this.gl = new THREE.WebGLRenderer({ antialias: false });
@@ -34,10 +38,18 @@ export class Renderer {
     this.resize();
   }
 
-  /** Keeps the camera at a fixed angle above and behind the target. */
-  follow(x: number, z: number): void {
-    this.camera.position.set(x + CAMERA_OFFSET.x, CAMERA_OFFSET.y, z + CAMERA_OFFSET.z);
-    this.camera.lookAt(x, 1, z);
+  /** Keeps the camera at a fixed angle above and behind the target, trailing it slightly. */
+  follow(x: number, z: number, dt: number): void {
+    if (this.focus) {
+      const a = 1 - Math.exp(-CAMERA_RESPONSE * dt);
+      this.focus.x += (x - this.focus.x) * a;
+      this.focus.z += (z - this.focus.z) * a;
+    } else {
+      this.focus = { x, z };
+    }
+    const { x: fx, z: fz } = this.focus;
+    this.camera.position.set(fx + CAMERA_OFFSET.x, CAMERA_OFFSET.y, fz + CAMERA_OFFSET.z);
+    this.camera.lookAt(fx, 1, fz);
   }
 
   render(): void {
