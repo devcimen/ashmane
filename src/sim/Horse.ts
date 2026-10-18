@@ -1,5 +1,5 @@
 /** Units per second at full gallop. */
-const MAX_SPEED = 7;
+const MAX_SPEED = 8;
 /** How quickly speed approaches its target while a direction is held (1/s). Higher = snappier. */
 const SPEED_RESPONSE = 3.5;
 /** How quickly the horse coasts to a stop when no direction is held (1/s). */
