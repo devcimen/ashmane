@@ -1,31 +1,33 @@
 import * as THREE from 'three';
 import type { Forest, Tree, TreeType } from '../sim/Forest';
-import type { Look } from './look';
-
-type PartRole = 'trunk' | 'leaves';
 
 interface TreePart {
   geometry: THREE.BufferGeometry;
   y: number;
   ox?: number;
   oz?: number;
-  role: PartRole;
+  color: number;
   flat: boolean;
 }
 
+// Trees are brighter than the ground so the dither renders them denser.
+const LEAVES = 0xb4b4b4;
+const PINE_TRUNK = 0x5a5a5a;
+const BROADLEAF_TRUNK = 0x505050;
+
 const TREE_PARTS: Record<TreeType, TreePart[]> = {
   pine: [
-    { geometry: new THREE.CylinderGeometry(0.2, 0.3, 1.4, 6), y: 0.7, role: 'trunk', flat: true },
-    { geometry: new THREE.ConeGeometry(1.6, 1.9, 8), y: 2.0, role: 'leaves', flat: true },
-    { geometry: new THREE.ConeGeometry(1.3, 1.7, 8), y: 3.0, role: 'leaves', flat: true },
-    { geometry: new THREE.ConeGeometry(1.0, 1.5, 8), y: 3.9, role: 'leaves', flat: true },
-    { geometry: new THREE.ConeGeometry(0.65, 1.3, 8), y: 4.7, role: 'leaves', flat: true },
+    { geometry: new THREE.CylinderGeometry(0.2, 0.3, 1.4, 6), y: 0.7, color: PINE_TRUNK, flat: true },
+    { geometry: new THREE.ConeGeometry(1.6, 1.9, 8), y: 2.0, color: LEAVES, flat: true },
+    { geometry: new THREE.ConeGeometry(1.3, 1.7, 8), y: 3.0, color: LEAVES, flat: true },
+    { geometry: new THREE.ConeGeometry(1.0, 1.5, 8), y: 3.9, color: LEAVES, flat: true },
+    { geometry: new THREE.ConeGeometry(0.65, 1.3, 8), y: 4.7, color: LEAVES, flat: true },
   ],
   broadleaf: [
-    { geometry: new THREE.CylinderGeometry(0.28, 0.38, 1.8, 6), y: 0.9, role: 'trunk', flat: true },
-    { geometry: new THREE.IcosahedronGeometry(1.55, 1), y: 3.2, role: 'leaves', flat: false },
-    { geometry: new THREE.IcosahedronGeometry(1.1, 1), y: 2.6, ox: 0.95, oz: 0.45, role: 'leaves', flat: false },
-    { geometry: new THREE.IcosahedronGeometry(1.15, 1), y: 2.7, ox: -0.9, oz: -0.4, role: 'leaves', flat: false },
+    { geometry: new THREE.CylinderGeometry(0.28, 0.38, 1.8, 6), y: 0.9, color: BROADLEAF_TRUNK, flat: true },
+    { geometry: new THREE.IcosahedronGeometry(1.55, 1), y: 3.2, color: LEAVES, flat: false },
+    { geometry: new THREE.IcosahedronGeometry(1.1, 1), y: 2.6, ox: 0.95, oz: 0.45, color: LEAVES, flat: false },
+    { geometry: new THREE.IcosahedronGeometry(1.15, 1), y: 2.7, ox: -0.9, oz: -0.4, color: LEAVES, flat: false },
   ],
 };
 
@@ -33,37 +35,25 @@ const TREE_PARTS: Record<TreeType, TreePart[]> = {
 const CROWN_RADIUS: Record<TreeType, number> = { pine: 1.6, broadleaf: 1.9 };
 /** Shadows fall slightly away from the moon (which sits at -X, +Z). */
 const SHADOW_OFFSET = { x: 0.5, z: -0.3 };
+const SHADOW_OPACITY = 0.6;
 
-/** Draws all trees as instanced meshes, one mesh per tree part, plus optional shadow blobs. */
+/** Draws all trees as instanced meshes, one mesh per tree part, plus a shadow blob under each crown. */
 export class ForestView {
   readonly object = new THREE.Group();
-  private readonly parts: { role: PartRole; type: TreeType; material: THREE.MeshLambertMaterial }[] = [];
-  private readonly shadows: THREE.InstancedMesh;
 
-  constructor(forest: Forest, look: Look) {
+  constructor(forest: Forest) {
     for (const type of Object.keys(TREE_PARTS) as TreeType[]) {
       const trees = forest.trees.filter((t) => t.type === type);
       for (const part of TREE_PARTS[type]) {
-        const material = new THREE.MeshLambertMaterial({ flatShading: part.flat });
-        this.parts.push({ role: part.role, type, material });
-        this.object.add(createPartMesh(part, material, trees));
+        this.object.add(createPartMesh(part, trees));
       }
     }
-    this.shadows = createShadowMesh(forest.trees);
-    this.object.add(this.shadows);
-    this.applyLook(look);
-  }
-
-  applyLook(look: Look): void {
-    for (const { role, type, material } of this.parts) {
-      const trunk = type === 'pine' ? look.pineTrunk : look.broadleafTrunk;
-      material.color.setHex(role === 'trunk' ? trunk : look.leaves);
-    }
-    this.shadows.visible = look.shadows;
+    this.object.add(createShadowMesh(forest.trees));
   }
 }
 
-function createPartMesh(part: TreePart, material: THREE.Material, trees: Tree[]): THREE.InstancedMesh {
+function createPartMesh(part: TreePart, trees: Tree[]): THREE.InstancedMesh {
+  const material = new THREE.MeshLambertMaterial({ color: part.color, flatShading: part.flat });
   const mesh = new THREE.InstancedMesh(part.geometry, material, Math.max(1, trees.length));
   mesh.count = trees.length;
   const dummy = new THREE.Object3D();
@@ -83,10 +73,16 @@ function createPartMesh(part: TreePart, material: THREE.Material, trees: Tree[])
   return mesh;
 }
 
+/** Dark blob under each crown that grounds the tree visually. */
 function createShadowMesh(trees: Tree[]): THREE.InstancedMesh {
   const geometry = new THREE.CircleGeometry(1, 16);
   geometry.rotateX(-Math.PI / 2);
-  const material = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.6, depthWrite: false });
+  const material = new THREE.MeshBasicMaterial({
+    color: 0x000000,
+    transparent: true,
+    opacity: SHADOW_OPACITY,
+    depthWrite: false,
+  });
   const mesh = new THREE.InstancedMesh(geometry, material, Math.max(1, trees.length));
   mesh.count = trees.length;
   const dummy = new THREE.Object3D();

@@ -1,29 +1,25 @@
 import * as THREE from 'three';
 import { mulberry32 } from '../core/random';
-import type { Look } from './look';
 
 const GROUND_SIZE = 160;
+const GROUND_COLOR = 0x6a6a6a;
 const TEXTURE_SIZE = 256;
 const TEXTURE_REPEAT = 14;
 
 /** Large ground plane with a grey blotch texture that gives the dither something to chew on. */
 export class GroundView {
   readonly object: THREE.Mesh;
-  private readonly material: THREE.MeshLambertMaterial;
 
-  constructor(look: Look) {
+  constructor() {
     const texture = new THREE.CanvasTexture(createNoiseCanvas());
     texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(TEXTURE_REPEAT, TEXTURE_REPEAT);
 
-    this.material = new THREE.MeshLambertMaterial({ map: texture });
-    this.object = new THREE.Mesh(new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE), this.material);
+    this.object = new THREE.Mesh(
+      new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE),
+      new THREE.MeshLambertMaterial({ color: GROUND_COLOR, map: texture }),
+    );
     this.object.rotation.x = -Math.PI / 2;
-    this.applyLook(look);
-  }
-
-  applyLook(look: Look): void {
-    this.material.color.setHex(look.ground);
   }
 }
 
