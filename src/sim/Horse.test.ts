@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { Horse } from './Horse';
+import { Horse, MAX_SPEED } from './Horse';
 
 const DT = 1 / 60;
-const MAX_SPEED = 7;
 
 function run(horse: Horse, seconds: number): void {
   for (let t = 0; t < seconds; t += DT) horse.update(DT);
