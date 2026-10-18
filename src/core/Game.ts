@@ -1,6 +1,9 @@
 import { Forest } from '../sim/Forest';
 import { FireGrid } from '../sim/FireGrid';
 import { Horse } from '../sim/Horse';
+import { ForestView } from '../render/ForestView';
+import { GroundView } from '../render/GroundView';
+import { HorseView } from '../render/HorseView';
 import { Renderer } from '../render/Renderer';
 import { Input } from './Input';
 import { mulberry32 } from './random';
@@ -14,12 +17,14 @@ export class Game {
   readonly forest: Forest;
   readonly fire = new FireGrid();
   private readonly renderer: Renderer;
+  private readonly horseView = new HorseView();
   private lastTime = 0;
   private frameId = 0;
 
   constructor(container: HTMLElement, readonly seed: number) {
     this.forest = new Forest(mulberry32(seed));
     this.renderer = new Renderer(container);
+    this.renderer.scene.add(new GroundView().object, new ForestView(this.forest).object, this.horseView.object);
   }
 
   start(): void {
@@ -41,6 +46,7 @@ export class Game {
     const dt = Math.min((now - this.lastTime) / 1000, MAX_DT);
     this.lastTime = now;
     this.update(dt);
+    this.horseView.update(this.horse);
     this.renderer.follow(this.horse.x, this.horse.z);
     this.renderer.render();
   };

@@ -22,6 +22,12 @@ export class Renderer {
     container.appendChild(this.gl.domElement);
 
     this.scene.background = new THREE.Color(0x000000);
+    this.scene.fog = new THREE.FogExp2(0x000000, 0.03);
+    // Intensities are the prototype's r128 values times PI (modern lights dropped that factor).
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.32 * Math.PI));
+    const moon = new THREE.DirectionalLight(0xffffff, 0.55 * Math.PI);
+    moon.position.set(-12, 22, 8);
+    this.scene.add(moon);
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
