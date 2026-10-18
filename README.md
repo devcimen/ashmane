@@ -17,6 +17,8 @@ npm run dev        # start the dev server and open the game in the browser
 npm run build      # type-check and build into dist/
 npm run preview    # serve the built version from dist/
 npm run typecheck  # type-check only
+npm test           # run the unit tests once
+npm run test:watch # run the unit tests in watch mode
 ```
 
 ## Structure
