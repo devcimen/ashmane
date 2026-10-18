@@ -8,28 +8,28 @@ const HOOF = 0x777777;
 const MODEL_SCALE = 1.25;
 
 /** Leg cycle advance per unit travelled (radians). */
-const STRIDE_PER_UNIT = 1.25;
+const STRIDE_PER_UNIT = 1.4;
 /** Speed at which the legs reach their full swing. */
-const FULL_SWING_SPEED = 2.5;
+const FULL_SWING_SPEED = 4;
 const HIP_SWING = 0.75;
-const KNEE_BEND = 0.9;
+const KNEE_BEND = 1.2;
 const BOB_HEIGHT = 0.09;
 /** Head nod amplitude at full swing (radians). */
-const HEAD_NOD = 0.7;
+const HEAD_NOD = 0.08;
 /** Lean per (turn rate × speed), and its limit (radians). */
 const LEAN_FACTOR = 0.012;
 const LEAN_MAX = 0.18;
 /** How quickly the lean follows the turn (1/s). */
 const LEAN_RESPONSE = 8;
 
-const TAIL_STRANDS = 7;
+const TAIL_STRANDS = 10;
 /** Segment lengths of one strand, root to tip; each strand varies them a little. */
-const TAIL_SEGMENTS = [0.45, 0.42, 0.4];
+const TAIL_SEGMENTS = [0.35, 0.32, 0.2];
 /** How far the tail lifts and streams back at full gallop (radians). */
-const TAIL_LIFT = 0.7;
+const TAIL_LIFT = 0.2;
 /** Side-to-side swish when standing (radians) and its speed (1/s). */
 const TAIL_SWISH = 0.18;
-const TAIL_SWISH_SPEED = 1.4;
+const TAIL_SWISH_SPEED = 1.2;
 /** Wave travelling down each strand (radians per segment). */
 const TAIL_WAVE = 0.12;
 
@@ -157,7 +157,7 @@ export class HorseView {
       const joints: THREE.Group[] = [];
       const bend: number[] = [];
       let parent: THREE.Object3D = root;
-      let radius = 0.1 + rng() * 0.03;
+      let radius = 0.045 + rng() * 0.02;
       TAIL_SEGMENTS.forEach((baseLength, i) => {
         const segLength = baseLength * length;
         const tip = i === TAIL_SEGMENTS.length - 1 ? 0.006 : radius * 0.7;
