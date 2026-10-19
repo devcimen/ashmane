@@ -10,10 +10,14 @@ export interface Tree {
   /** Rotation around the Y axis, in radians. */
   rotation: number;
   type: TreeType;
+  /** Burnt down to a charred trunk; set by the fire simulation. */
+  charred: boolean;
 }
 
 /** Crown radius per tree type at scale 1. */
 export const CROWN_RADIUS: Record<TreeType, number> = { pine: 1.6, broadleaf: 1.9 };
+/** Trunk radius at the base per tree type at scale 1; all that blocks once a tree is charred. */
+const TRUNK_RADIUS: Record<TreeType, number> = { pine: 0.3, broadleaf: 0.38 };
 /** Range of tree sizes. */
 const MIN_SCALE = 0.85;
 const MAX_SCALE = 1.45;
@@ -25,6 +29,7 @@ const MAX_COLLISION_RADIUS = Math.max(...Object.values(CROWN_RADIUS)) * MAX_SCAL
 const COLLISION_PASSES = 2;
 
 export function collisionRadius(tree: Tree): number {
+  if (tree.charred) return TRUNK_RADIUS[tree.type] * tree.scale;
   return CROWN_RADIUS[tree.type] * tree.scale * COLLISION_FACTOR;
 }
 
@@ -123,6 +128,7 @@ export class Forest {
         scale: MIN_SCALE + rng() * (MAX_SCALE - MIN_SCALE),
         rotation: rng() * Math.PI * 2,
         type: rng() < 0.5 ? 'pine' : 'broadleaf',
+        charred: false,
       });
     }
   }

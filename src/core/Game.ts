@@ -10,6 +10,7 @@ import { Input } from './Input';
 import { mulberry32, randomSeed } from './random';
 
 const MAX_DT = 0.05;
+const FIRE_SEED_SALT = 0x5f3759df;
 
 type GameState = 'playing' | 'won';
 
@@ -24,7 +25,7 @@ export class Game {
   private seed = 0;
   private horse = new Horse();
   private forest!: Forest;
-  private fire = new FireGrid();
+  private fire!: FireGrid;
   private forestView: ForestView | null = null;
   private state: GameState = 'playing';
   private elapsed = 0;
@@ -87,7 +88,8 @@ export class Game {
     console.info(`Ashmane seed: ${seed}`);
     this.forest = new Forest(mulberry32(seed));
     this.horse = new Horse();
-    this.fire = new FireGrid();
+    // Separate random stream, so the forest layout does not depend on how the fire rolls.
+    this.fire = new FireGrid(this.forest, mulberry32(seed ^ FIRE_SEED_SALT));
     this.state = 'playing';
     this.elapsed = 0;
 
