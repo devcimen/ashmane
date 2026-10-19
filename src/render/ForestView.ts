@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Forest, Tree, TreeType } from '../sim/Forest';
+import { CROWN_RADIUS, type Forest, type Tree, type TreeType } from '../sim/Forest';
 
 interface TreePart {
   geometry: THREE.BufferGeometry;
@@ -31,8 +31,6 @@ const TREE_PARTS: Record<TreeType, TreePart[]> = {
   ],
 };
 
-/** Crown radius per tree type, used for the shadow blob. */
-const CROWN_RADIUS: Record<TreeType, number> = { pine: 1.6, broadleaf: 1.9 };
 /** Shadows fall slightly away from the moon (which sits at -X, +Z). */
 const SHADOW_OFFSET = { x: 0.5, z: -0.3 };
 const SHADOW_OPACITY = 0.6;
