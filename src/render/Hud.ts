@@ -1,13 +1,26 @@
+/** Same pink as the horse: the bar is the horse's life. */
+const HEALTH_COLOR = '#ffa3d4';
+
 /**
- * HTML overlay above the canvas. For now only a centred message box;
- * the health bar comes with the fire step, the real menus with the menu step.
+ * HTML overlay above the canvas: a health bar and a centred message box.
+ * The real menus come with the menu step.
  */
 export class Hud {
+  private readonly healthBar: HTMLDivElement;
+  private readonly healthFill: HTMLDivElement;
   private readonly message: HTMLDivElement;
   private readonly title: HTMLDivElement;
   private readonly detail: HTMLDivElement;
 
   constructor(container: HTMLElement) {
+    this.healthBar = document.createElement('div');
+    this.healthBar.style.cssText =
+      'position:fixed;left:16px;top:16px;width:200px;height:12px;border:1px solid #fff;background:#000;pointer-events:none';
+    this.healthFill = document.createElement('div');
+    this.healthFill.style.cssText = `height:100%;width:100%;background:${HEALTH_COLOR}`;
+    this.healthBar.appendChild(this.healthFill);
+    container.appendChild(this.healthBar);
+
     this.message = document.createElement('div');
     this.message.style.cssText = [
       'position:fixed',
@@ -31,6 +44,11 @@ export class Hud {
     container.appendChild(this.message);
   }
 
+  /** Health as a share of the maximum, 0 to 1. */
+  setHealth(fraction: number): void {
+    this.healthFill.style.width = `${Math.max(0, Math.min(1, fraction)) * 100}%`;
+  }
+
   showMessage(title: string, detail: string): void {
     this.title.textContent = title;
     this.detail.textContent = detail;
@@ -42,6 +60,7 @@ export class Hud {
   }
 
   dispose(): void {
+    this.healthBar.remove();
     this.message.remove();
   }
 }

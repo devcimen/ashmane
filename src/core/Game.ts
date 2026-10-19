@@ -1,6 +1,6 @@
 import { type Collision, Forest } from '../sim/Forest';
 import { FireGrid } from '../sim/FireGrid';
-import { HORSE_RADIUS, Horse } from '../sim/Horse';
+import { HORSE_RADIUS, Horse, MAX_HEALTH } from '../sim/Horse';
 import { FireView } from '../render/FireView';
 import { ForestView } from '../render/ForestView';
 import { GroundView } from '../render/GroundView';
@@ -13,7 +13,7 @@ import { mulberry32, randomSeed } from './random';
 const MAX_DT = 0.05;
 const FIRE_SEED_SALT = 0x5f3759df;
 
-type GameState = 'playing' | 'won';
+type GameState = 'playing' | 'won' | 'dead';
 
 /** Owns the main loop and the run state, and wires simulation and rendering together. */
 export class Game {
@@ -53,7 +53,7 @@ export class Game {
 
   update(dt: number): void {
     const restart = this.input.consumePress('Enter', 'KeyR');
-    if (this.state === 'won' && restart) {
+    if (this.state !== 'playing' && restart) {
       this.newRun(randomSeed());
       return;
     }
@@ -72,13 +72,16 @@ export class Game {
     this.fire.update(dt);
     this.horse.applyHeat(this.fire.heatAt(this.horse.x, this.horse.z), dt);
 
-    if (this.state === 'playing' && !this.forest.edge.contains(this.horse.x, this.horse.z)) {
-      this.state = 'won';
-      this.hud.showMessage(
-        'Entkommen',
-        `${this.elapsed.toFixed(1)} s  ·  Wald ${this.seed}  ·  Enter für einen neuen Wald`,
-      );
-    }
+    this.hud.setHealth(this.horse.health / MAX_HEALTH);
+
+    if (this.state !== 'playing') return;
+    if (!this.horse.alive) this.end('dead', 'Verbrannt');
+    else if (!this.forest.edge.contains(this.horse.x, this.horse.z)) this.end('won', 'Entkommen');
+  }
+
+  private end(state: GameState, title: string): void {
+    this.state = state;
+    this.hud.showMessage(title, `${this.elapsed.toFixed(1)} s  ·  Wald ${this.seed}  ·  Enter für einen neuen Wald`);
   }
 
   /** Moves the horse out of an obstacle and lets it lose speed accordingly. */
