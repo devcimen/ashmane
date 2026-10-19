@@ -52,6 +52,11 @@ export class Renderer {
     this.camera.lookAt(fx, 1, fz);
   }
 
+  /** Makes the next follow() jump straight to its target instead of gliding there. */
+  resetCamera(): void {
+    this.focus = null;
+  }
+
   render(): void {
     this.dither.render(this.gl, this.scene, this.camera);
   }

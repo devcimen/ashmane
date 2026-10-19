@@ -81,6 +81,12 @@ export class HorseView {
     this.object.add(this.light);
   }
 
+  /** Forgets the previous run so the first frame of a new one does not lean or jump. */
+  reset(): void {
+    this.lean = 0;
+    this.lastHeading = null;
+  }
+
   update(horse: Horse, dt: number): void {
     const swing = Math.min(1, horse.speed / FULL_SWING_SPEED);
     this.phase += horse.speed * STRIDE_PER_UNIT * dt;

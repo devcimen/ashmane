@@ -38,6 +38,7 @@ const SHADOW_OPACITY = 0.6;
 /** Draws all trees as instanced meshes, one mesh per tree part, plus a shadow blob under each crown. */
 export class ForestView {
   readonly object = new THREE.Group();
+  private readonly shadows: THREE.InstancedMesh;
 
   constructor(forest: Forest) {
     for (const type of Object.keys(TREE_PARTS) as TreeType[]) {
@@ -46,7 +47,19 @@ export class ForestView {
         this.object.add(createPartMesh(part, trees));
       }
     }
-    this.object.add(createShadowMesh(forest.trees));
+    this.shadows = createShadowMesh(forest.trees);
+    this.object.add(this.shadows);
+  }
+
+  /** Frees GPU resources. Tree part geometries are shared between forests and stay. */
+  dispose(): void {
+    for (const child of this.object.children) {
+      if (!(child instanceof THREE.InstancedMesh)) continue;
+      child.dispose();
+      (child.material as THREE.Material).dispose();
+    }
+    this.shadows.geometry.dispose();
+    this.object.removeFromParent();
   }
 }
 
