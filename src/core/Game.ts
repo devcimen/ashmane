@@ -1,6 +1,7 @@
 import { Forest } from '../sim/Forest';
 import { FireGrid } from '../sim/FireGrid';
 import { HORSE_RADIUS, Horse } from '../sim/Horse';
+import { FireView } from '../render/FireView';
 import { ForestView } from '../render/ForestView';
 import { GroundView } from '../render/GroundView';
 import { HorseView } from '../render/HorseView';
@@ -26,7 +27,8 @@ export class Game {
   private horse = new Horse();
   private forest!: Forest;
   private fire!: FireGrid;
-  private forestView: ForestView | null = null;
+  private forestView?: ForestView;
+  private fireView?: FireView;
   private state: GameState = 'playing';
   private elapsed = 0;
 
@@ -94,8 +96,10 @@ export class Game {
     this.elapsed = 0;
 
     this.forestView?.dispose();
+    this.fireView?.dispose();
     this.forestView = new ForestView(this.forest);
-    this.renderer.scene.add(this.forestView.object);
+    this.fireView = new FireView(this.fire, this.forest);
+    this.renderer.scene.add(this.forestView.object, this.fireView.object);
     this.horseView.reset();
     this.renderer.resetCamera();
     this.hud.hideMessage();
@@ -106,6 +110,8 @@ export class Game {
     const dt = Math.min((now - this.lastTime) / 1000, MAX_DT);
     this.lastTime = now;
     this.update(dt);
+    this.forestView?.update(this.fire);
+    this.fireView?.update(dt, this.horse.x, this.horse.z);
     this.horseView.update(this.horse, dt);
     this.renderer.follow(this.horse.x, this.horse.z, dt);
     this.renderer.render();
