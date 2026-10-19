@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/random';
-import { Forest } from './Forest';
+import { Forest, collisionRadius } from './Forest';
 
 const forest = new Forest(mulberry32(5));
 
@@ -28,6 +28,19 @@ describe('Forest', () => {
       const close = forest.treesNear(t.x, t.z, 2.99).filter((o) => o !== t);
       expect(close).toEqual([]);
     }
+  });
+
+  it('pushes a circle out of a tree it overlaps', () => {
+    const tree = forest.trees[0];
+    const hit = forest.collide(tree.x + 0.1, tree.z, 0.45);
+    expect(hit).not.toBeNull();
+    const distance = Math.hypot(hit!.x - tree.x, hit!.z - tree.z);
+    expect(distance).toBeGreaterThanOrEqual(0.45 + collisionRadius(tree) - 1e-9);
+    expect(hit!.nx).toBeCloseTo(1, 6);
+  });
+
+  it('reports no collision in the clear start area', () => {
+    expect(forest.collide(0, 0, 0.45)).toBeNull();
   });
 
   it('thins out towards the edge', () => {

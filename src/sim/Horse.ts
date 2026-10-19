@@ -12,6 +12,8 @@ const TURN_SLOW = 6;
 const TURN_FAST = 2.5;
 /** Lowest speed factor in sharp turns; a U-turn slows down to this share of MAX_SPEED. */
 const CORNER_SPEED_MIN = 0.25;
+/** Size of the horse as a circle on the ground, for collisions. */
+export const HORSE_RADIUS = 0.45;
 
 /**
  * Horse state on the ground plane. Pure logic, no rendering.
@@ -50,6 +52,16 @@ export class Horse {
     this.updateSpeed(targetSpeed, wantsToMove ? SPEED_RESPONSE : BRAKE_RESPONSE, dt);
     this.x += this.vx * dt;
     this.z += this.vz * dt;
+  }
+
+  /**
+   * Reacts to running into an obstacle whose surface points along (nx, nz).
+   * Head-on loses all speed, grazing keeps most of it, so the horse slides along.
+   */
+  bump(nx: number, nz: number): void {
+    const into = -(Math.cos(this.heading) * nx - Math.sin(this.heading) * nz);
+    if (into <= 0) return;
+    this.speed *= Math.sqrt(Math.max(0, 1 - into * into));
   }
 
   /** Turns towards the desired direction and returns the speed the horse aims for. */

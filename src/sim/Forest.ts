@@ -14,6 +14,28 @@ export interface Tree {
 
 /** Crown radius per tree type at scale 1. */
 export const CROWN_RADIUS: Record<TreeType, number> = { pine: 1.6, broadleaf: 1.9 };
+/** Range of tree sizes. */
+const MIN_SCALE = 0.85;
+const MAX_SCALE = 1.45;
+/** Share of the crown radius that blocks movement: between trunk and full crown. */
+const COLLISION_FACTOR = 0.5;
+/** Largest possible collision radius, used to widen neighbour searches. */
+const MAX_COLLISION_RADIUS = Math.max(...Object.values(CROWN_RADIUS)) * MAX_SCALE * COLLISION_FACTOR;
+/** Push-out passes; a second pass settles cases where two trees touch the same circle. */
+const COLLISION_PASSES = 2;
+
+export function collisionRadius(tree: Tree): number {
+  return CROWN_RADIUS[tree.type] * tree.scale * COLLISION_FACTOR;
+}
+
+export interface Collision {
+  /** Position pushed out of all trees. */
+  x: number;
+  z: number;
+  /** Combined push direction (unit length), pointing away from the trees. */
+  nx: number;
+  nz: number;
+}
 
 /** Trees per square unit deep inside the forest. */
 const TREE_DENSITY = 0.016;
@@ -56,6 +78,33 @@ export class Forest {
     return result;
   }
 
+  /** Pushes a circle out of any trees it overlaps. Returns null when nothing was hit. */
+  collide(x: number, z: number, radius: number): Collision | null {
+    let nx = 0;
+    let nz = 0;
+    let hit = false;
+    for (let pass = 0; pass < COLLISION_PASSES; pass++) {
+      for (const tree of this.treesNear(x, z, radius + MAX_COLLISION_RADIUS)) {
+        const min = radius + collisionRadius(tree);
+        const dx = x - tree.x;
+        const dz = z - tree.z;
+        const d = Math.hypot(dx, dz);
+        if (d >= min) continue;
+        // Exactly on the centre there is no direction; pick one.
+        const ux = d > 1e-6 ? dx / d : 1;
+        const uz = d > 1e-6 ? dz / d : 0;
+        x = tree.x + ux * min;
+        z = tree.z + uz * min;
+        nx += ux;
+        nz += uz;
+        hit = true;
+      }
+    }
+    if (!hit) return null;
+    const len = Math.hypot(nx, nz) || 1;
+    return { x, z, nx: nx / len, nz: nz / len };
+  }
+
   /** Random dart throwing inside the edge, thinning out towards it, with a minimum spacing. */
   private plant(rng: Rng): void {
     const target = Math.round(this.edge.area() * TREE_DENSITY);
@@ -71,7 +120,7 @@ export class Forest {
       this.add({
         x,
         z,
-        scale: 0.85 + rng() * 0.6,
+        scale: MIN_SCALE + rng() * (MAX_SCALE - MIN_SCALE),
         rotation: rng() * Math.PI * 2,
         type: rng() < 0.5 ? 'pine' : 'broadleaf',
       });

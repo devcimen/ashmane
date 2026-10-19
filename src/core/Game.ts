@@ -1,6 +1,6 @@
 import { Forest } from '../sim/Forest';
 import { FireGrid } from '../sim/FireGrid';
-import { Horse } from '../sim/Horse';
+import { HORSE_RADIUS, Horse } from '../sim/Horse';
 import { ForestView } from '../render/ForestView';
 import { GroundView } from '../render/GroundView';
 import { HorseView } from '../render/HorseView';
@@ -40,6 +40,12 @@ export class Game {
     const dir = this.input.direction();
     this.horse.setDirection(dir.x, dir.z);
     this.horse.update(dt);
+    const hit = this.forest.collide(this.horse.x, this.horse.z, HORSE_RADIUS);
+    if (hit) {
+      this.horse.x = hit.x;
+      this.horse.z = hit.z;
+      this.horse.bump(hit.nx, hit.nz);
+    }
     this.fire.update(dt);
   }
 

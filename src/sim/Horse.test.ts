@@ -79,6 +79,27 @@ describe('Horse', () => {
     expect(horse.speed).toBeLessThan(MAX_SPEED * 0.6);
   });
 
+  it('stops when running head-on into an obstacle', () => {
+    const horse = gallopingHorse(); // heading +X
+    horse.bump(-1, 0);
+    expect(horse.speed).toBe(0);
+  });
+
+  it('keeps most speed when grazing an obstacle', () => {
+    const horse = gallopingHorse();
+    const before = horse.speed;
+    horse.bump(-Math.sin(0.2), Math.cos(0.2)); // surface almost parallel to the path
+    expect(horse.speed).toBeGreaterThan(before * 0.9);
+    expect(horse.speed).toBeLessThan(before);
+  });
+
+  it('ignores obstacles it is moving away from', () => {
+    const horse = gallopingHorse();
+    const before = horse.speed;
+    horse.bump(1, 0);
+    expect(horse.speed).toBe(before);
+  });
+
   it('turns tighter when slow than at full gallop', () => {
     const slow = new Horse();
     slow.speed = 1;
