@@ -5,7 +5,7 @@ import type { Horse } from '../sim/Horse';
 const PINK = 0xffa3d4;
 const MANE = 0xe6e6e6;
 const HOOF = 0x777777;
-const MODEL_SCALE = 1.25;
+const MODEL_SCALE = 0.7;
 
 /** Leg cycle advance per unit travelled (radians). */
 const STRIDE_PER_UNIT = 1.4;
