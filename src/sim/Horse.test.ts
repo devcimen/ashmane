@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Horse, MAX_SPEED } from './Horse';
+import { Horse, MAX_HEALTH, MAX_SPEED } from './Horse';
 
 const DT = 1 / 60;
 
@@ -98,6 +98,43 @@ describe('Horse', () => {
     const before = horse.speed;
     horse.bump(1, 0);
     expect(horse.speed).toBe(before);
+  });
+
+  it('starts with full health and takes no damage without heat', () => {
+    const horse = new Horse();
+    horse.applyHeat(0, 1);
+    expect(horse.health).toBe(MAX_HEALTH);
+    expect(horse.alive).toBe(true);
+  });
+
+  it('loses more health the longer it stays in the heat', () => {
+    const damageOver = (horse: Horse, seconds: number) => {
+      const before = horse.health;
+      for (let t = 0; t < seconds; t += 0.1) horse.applyHeat(1, 0.1);
+      return before - horse.health;
+    };
+    const fresh = damageOver(new Horse(), 0.5);
+    const exposed = new Horse();
+    damageOver(exposed, 3);
+    expect(fresh).toBeGreaterThan(0);
+    expect(damageOver(exposed, 0.5)).toBeGreaterThan(fresh * 1.5);
+  });
+
+  it('recovers from exposure out of the heat, but not health', () => {
+    const horse = new Horse();
+    horse.applyHeat(1, 2);
+    const health = horse.health;
+    expect(horse.exposure).toBeGreaterThan(0);
+    horse.applyHeat(0, 5);
+    expect(horse.exposure).toBe(0);
+    expect(horse.health).toBe(health);
+  });
+
+  it('dies at zero health and does not go below', () => {
+    const horse = new Horse();
+    for (let t = 0; t < 20; t += 0.1) horse.applyHeat(3, 0.1);
+    expect(horse.health).toBe(0);
+    expect(horse.alive).toBe(false);
   });
 
   it('turns tighter when slow than at full gallop', () => {

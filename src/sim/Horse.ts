@@ -15,6 +15,16 @@ const CORNER_SPEED_MIN = 0.25;
 /** Size of the horse as a circle on the ground, for collisions. */
 export const HORSE_RADIUS = 0.45;
 
+export const MAX_HEALTH = 100;
+/** Health lost per second per unit of heat (one full-strength flame right next to the horse ≈ 1). */
+const DAMAGE_PER_HEAT = 12;
+/** Extra damage per second spent in the heat without a break (0.5 = +50 % per second). */
+const EXPOSURE_GAIN = 0.5;
+/** Exposure stops growing after this many seconds. */
+const EXPOSURE_MAX = 4;
+/** Seconds of exposure that wear off per second out of the heat. */
+const EXPOSURE_RECOVERY = 1;
+
 /**
  * Horse state on the ground plane. Pure logic, no rendering.
  * The horse always runs forward along its heading; the input only says where it wants to go.
@@ -28,9 +38,16 @@ export class Horse {
    * positive values turn towards -Z (same convention as Three.js rotation.y).
    */
   heading = 0;
+  health = MAX_HEALTH;
+  /** Seconds spent in the heat without a break; makes staying close to the fire worse and worse. */
+  exposure = 0;
 
   private dirX = 0;
   private dirZ = 0;
+
+  get alive(): boolean {
+    return this.health > 0;
+  }
 
   get vx(): number {
     return Math.cos(this.heading) * this.speed;
@@ -52,6 +69,17 @@ export class Horse {
     this.updateSpeed(targetSpeed, wantsToMove ? SPEED_RESPONSE : BRAKE_RESPONSE, dt);
     this.x += this.vx * dt;
     this.z += this.vz * dt;
+  }
+
+  /** Takes damage from the heat at its position; the longer it stays in the heat, the more it hurts. */
+  applyHeat(heat: number, dt: number): void {
+    if (heat > 0) {
+      this.exposure = Math.min(EXPOSURE_MAX, this.exposure + dt);
+      this.health -= heat * DAMAGE_PER_HEAT * (1 + this.exposure * EXPOSURE_GAIN) * dt;
+      this.health = Math.max(0, this.health);
+    } else {
+      this.exposure = Math.max(0, this.exposure - EXPOSURE_RECOVERY * dt);
+    }
   }
 
   /**

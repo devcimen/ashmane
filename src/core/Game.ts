@@ -1,4 +1,4 @@
-import { Forest } from '../sim/Forest';
+import { type Collision, Forest } from '../sim/Forest';
 import { FireGrid } from '../sim/FireGrid';
 import { HORSE_RADIUS, Horse } from '../sim/Horse';
 import { FireView } from '../render/FireView';
@@ -67,13 +67,10 @@ export class Game {
     }
 
     this.horse.update(dt);
-    const hit = this.forest.collide(this.horse.x, this.horse.z, HORSE_RADIUS);
-    if (hit) {
-      this.horse.x = hit.x;
-      this.horse.z = hit.z;
-      this.horse.bump(hit.nx, hit.nz);
-    }
+    this.resolve(this.forest.collide(this.horse.x, this.horse.z, HORSE_RADIUS));
+    this.resolve(this.fire.collide(this.horse.x, this.horse.z, HORSE_RADIUS));
     this.fire.update(dt);
+    this.horse.applyHeat(this.fire.heatAt(this.horse.x, this.horse.z), dt);
 
     if (this.state === 'playing' && !this.forest.edge.contains(this.horse.x, this.horse.z)) {
       this.state = 'won';
@@ -82,6 +79,14 @@ export class Game {
         `${this.elapsed.toFixed(1)} s  ·  Wald ${this.seed}  ·  Enter für einen neuen Wald`,
       );
     }
+  }
+
+  /** Moves the horse out of an obstacle and lets it lose speed accordingly. */
+  private resolve(hit: Collision | null): void {
+    if (!hit) return;
+    this.horse.x = hit.x;
+    this.horse.z = hit.z;
+    this.horse.bump(hit.nx, hit.nz);
   }
 
   /** Builds a fresh forest from the seed and puts the horse back in the middle. */
