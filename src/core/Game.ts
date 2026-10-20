@@ -23,8 +23,6 @@ export class Game {
   private readonly renderer: Renderer;
   private readonly hud: Hud;
   private readonly horseView = new HorseView();
-  /** Temporary label for the fire look test. */
-  private readonly fireLookLabel = document.createElement('div');
 
   // Everything below is replaced on every new run.
   private seed = 0;
@@ -42,10 +40,6 @@ export class Game {
   constructor(container: HTMLElement, seed: number) {
     this.renderer = new Renderer(container);
     this.hud = new Hud(container);
-    this.fireLookLabel.style.cssText =
-      'position:fixed;right:16px;top:12px;font:12px monospace;color:#fff;background:#000;padding:4px 8px;pointer-events:none';
-    this.fireLookLabel.textContent = 'Feuer: neu, durchsichtig (F)';
-    container.appendChild(this.fireLookLabel);
     this.renderer.scene.add(new GroundView().object, this.horseView.object);
     this.newRun(seed);
   }
@@ -60,7 +54,6 @@ export class Game {
   }
 
   update(dt: number): void {
-    if (this.input.consumePress('KeyF')) this.toggleFireLook();
     const restart = this.input.consumePress('Enter', 'KeyR');
     if (this.state !== 'playing' && restart) {
       this.newRun(randomSeed());
@@ -90,13 +83,6 @@ export class Game {
   private end(state: GameState, title: string): void {
     this.state = state;
     this.hud.showMessage(title, `${this.elapsed.toFixed(1)} s  ·  Wald ${this.seed}  ·  Enter für einen neuen Wald`);
-  }
-
-  /** Temporary look test: F switches between solid fire and see-through dithered fire. */
-  private toggleFireLook(): void {
-    const dither = this.renderer.dither;
-    dither.fireMask = !dither.fireMask;
-    this.fireLookLabel.textContent = dither.fireMask ? 'Feuer: neu, durchsichtig (F)' : 'Feuer: alt, solide (F)';
   }
 
   /** Moves the horse out of an obstacle and lets it lose speed accordingly. */

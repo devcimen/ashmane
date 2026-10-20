@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import type { FireGrid } from '../sim/FireGrid';
 import type { Forest, TreeType } from '../sim/Forest';
 import { CELL_SIZE, GRID_SIZE } from '../sim/world';
-import { FIRE_LAYER } from './DitherPass';
 
 /** Only fire within this distance of the camera focus is drawn. */
 const VIEW_RADIUS = 45;
@@ -15,12 +14,8 @@ const LIGHT_COUNT = 6;
 const LIGHT_RETARGET = 0.5;
 /** How quickly the lights glide to their new spots (1/s). */
 const LIGHT_RESPONSE = 2.5;
-const EMBER_COUNT = 320;
-const EMBER_MAX_HEIGHT = 8;
-/** Ember size in pixels of the low-resolution render target. */
-const EMBER_SIZE = 2.5;
-/** Radius of the warm glow disc around a burning ground cell. */
-const GLOW_RADIUS = 1.5;
+const EMBER_COUNT = 170;
+const EMBER_MAX_HEIGHT = 6.5;
 
 /** Flame size per tree type: base radius and height, from the look prototype. */
 const TREE_FLAME: Record<TreeType, { radius: number; height: number }> = {
@@ -46,9 +41,6 @@ interface Ember {
   y: number;
   speed: number;
   drift: number;
-  /** Flicker speed and phase, so every ember twinkles on its own. */
-  twinkle: number;
-  phase: number;
 }
 
 /**
@@ -68,7 +60,6 @@ export class FireView {
   private lightTimer = 0;
   private readonly embers: Ember[] = [];
   private readonly emberPositions = new Float32Array(EMBER_COUNT * 3);
-  private readonly emberColors = new Float32Array(EMBER_COUNT * 3);
   private readonly emberGeometry = new THREE.BufferGeometry();
   private readonly burnCanvas = document.createElement('canvas');
   private readonly burnContext: CanvasRenderingContext2D;
@@ -89,7 +80,7 @@ export class FireView {
     groundFlameGeometry.translate(0, 0.5, 0);
     this.groundFlames = this.instanced(groundFlameGeometry, this.groundFlameMaterial, MAX_GROUND_FLAMES);
 
-    const glowGeometry = new THREE.CircleGeometry(GLOW_RADIUS, 12);
+    const glowGeometry = new THREE.CircleGeometry(0.95, 10);
     glowGeometry.rotateX(-Math.PI / 2);
     this.glow = this.instanced(glowGeometry, this.glowMaterial, MAX_GROUND_FLAMES);
 
@@ -100,25 +91,14 @@ export class FireView {
     }
 
     for (let i = 0; i < EMBER_COUNT; i++) {
-      this.embers.push({
-        x: 0,
-        z: 0,
-        // Staggered start heights so the first embers do not all rise at once.
-        y: EMBER_MAX_HEIGHT + 1 + Math.random() * EMBER_MAX_HEIGHT,
-        speed: 1.2 + Math.random() * 2.5,
-        drift: (Math.random() - 0.5) * 1.2,
-        twinkle: 6 + Math.random() * 14,
-        phase: Math.random() * Math.PI * 2,
-      });
+      this.embers.push({ x: 0, z: 0, y: 99, speed: 1.2 + Math.random() * 2, drift: (Math.random() - 0.5) * 0.8 });
     }
     this.emberGeometry.setAttribute('position', new THREE.BufferAttribute(this.emberPositions, 3));
-    this.emberGeometry.setAttribute('color', new THREE.BufferAttribute(this.emberColors, 3));
     const embers = new THREE.Points(
       this.emberGeometry,
-      new THREE.PointsMaterial({ vertexColors: true, size: EMBER_SIZE, sizeAttenuation: false }),
+      new THREE.PointsMaterial({ color: new THREE.Color(1, 0.12, 0.12), size: 2, sizeAttenuation: false }),
     );
     embers.frustumCulled = false;
-    embers.layers.set(FIRE_LAYER);
     this.object.add(embers);
 
     this.burnCanvas.width = this.burnCanvas.height = GRID_SIZE;
@@ -145,9 +125,9 @@ export class FireView {
     setFireColor(this.groundFlameMaterial, 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(t * 8.2 + 0.7)));
     setFireColor(this.glowMaterial, 0.3 + 0.12 * Math.sin(t * 5));
 
-    const { near, visible } = this.updateFlames(focusX, focusZ);
+    const near = this.updateFlames(focusX, focusZ);
     this.updateLights(dt, near);
-    this.updateEmbers(dt, visible);
+    this.updateEmbers(dt, near);
     this.updateBurnMap();
   }
 
@@ -163,14 +143,10 @@ export class FireView {
     this.object.removeFromParent();
   }
 
-  /**
-   * Places flame instances for burning cells near the focus. Returns the drawn cells and
-   * those close enough for the lights.
-   */
-  private updateFlames(focusX: number, focusZ: number): { near: number[]; visible: number[] } {
+  /** Places flame instances for burning cells near the focus; returns the cells close enough for lights. */
+  private updateFlames(focusX: number, focusZ: number): number[] {
     const { fire, dummy: d, time: t } = this;
     const near: number[] = [];
-    const visible: number[] = [];
     let trees = 0;
     let ground = 0;
     for (const c of fire.burning) {
@@ -178,7 +154,6 @@ export class FireView {
       const z = fire.cellZ(c);
       const dist2 = (x - focusX) ** 2 + (z - focusZ) ** 2;
       if (dist2 > VIEW_RADIUS * VIEW_RADIUS) continue;
-      visible.push(c);
       if (dist2 < LIGHT_RADIUS * LIGHT_RADIUS) near.push(c);
       const k = fire.intensity(c);
       const treeIndex = fire.cellTree[c];
@@ -217,7 +192,7 @@ export class FireView {
     for (const m of this.treeFlames) finish(m, trees);
     finish(this.groundFlames, ground);
     finish(this.glow, ground);
-    return { near, visible };
+    return near;
   }
 
   /** A few point lights glide between burning spots near the focus and flicker. */
@@ -250,17 +225,17 @@ export class FireView {
     });
   }
 
-  /** Embers rise from random visible burning cells, drift, twinkle and fade out towards the top. */
-  private updateEmbers(dt: number, visible: number[]): void {
+  /** Embers rise from random burning cells near the focus and drift a little. */
+  private updateEmbers(dt: number, near: number[]): void {
     const { fire } = this;
     this.embers.forEach((e, i) => {
       e.y += e.speed * dt;
       if (e.y > EMBER_MAX_HEIGHT) {
-        if (visible.length > 0) {
-          const c = visible[Math.floor(Math.random() * visible.length)];
-          e.x = fire.cellX(c) + (Math.random() - 0.5) * 1.6;
-          e.z = fire.cellZ(c) + (Math.random() - 0.5) * 1.6;
-          e.y = 0.3 + Math.random() * 1.5;
+        if (near.length > 0) {
+          const c = near[Math.floor(Math.random() * near.length)];
+          e.x = fire.cellX(c) + (Math.random() - 0.5) * 1.4;
+          e.z = fire.cellZ(c) + (Math.random() - 0.5) * 1.4;
+          e.y = 0.3;
         } else {
           e.y = 99;
         }
@@ -268,14 +243,8 @@ export class FireView {
       this.emberPositions[i * 3] = e.x + Math.sin(this.time * 2 + i) * e.drift * 0.5 * (e.y / 6);
       this.emberPositions[i * 3 + 1] = e.y < 90 ? e.y : -50;
       this.emberPositions[i * 3 + 2] = e.z;
-      const fade = 1 - Math.max(0, e.y / EMBER_MAX_HEIGHT - 0.6) / 0.4;
-      const b = (0.45 + 0.55 * (0.5 + 0.5 * Math.sin(this.time * e.twinkle + e.phase))) * fade;
-      this.emberColors[i * 3] = b;
-      this.emberColors[i * 3 + 1] = b * 0.12;
-      this.emberColors[i * 3 + 2] = b * 0.12;
     });
     this.emberGeometry.attributes.position.needsUpdate = true;
-    this.emberGeometry.attributes.color.needsUpdate = true;
   }
 
   /** Darkens cells that burnt out since the last frame. */
@@ -295,7 +264,6 @@ export class FireView {
     const mesh = new THREE.InstancedMesh(geometry, material, max);
     mesh.frustumCulled = false;
     mesh.count = 0;
-    mesh.layers.set(FIRE_LAYER);
     this.object.add(mesh);
     return mesh;
   }
