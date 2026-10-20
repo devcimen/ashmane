@@ -43,9 +43,37 @@ const WHITE = new THREE.Color(0xffffff);
 
 /** How far the model sinks into the ground when fully swallowed by ash; leaves the head out. */
 const SINK_DEPTH = 1.5;
-/** The deeper it sinks, the more the horse trembles, as if fighting its way out. */
-const SINK_TREMBLE = 0.06;
-const SINK_TREMBLE_SPEED = 38;
+/** The deeper it sinks, the more the horse struggles: a slow, uneven sway, not a jitter. */
+const SINK_STRUGGLE = 0.07;
+const SINK_STRUGGLE_SPEED = 7;
+
+/** Lying pose (folded legs, belly on the ground), in model units and radians. */
+const LIE_DROP = 0.8 * MODEL_SCALE;
+const LIE_FRONT_HIP = 0.5;
+const LIE_FRONT_KNEE = -2.5;
+const LIE_HIND_HIP = 1.3;
+const LIE_HIND_KNEE = -2.8;
+/** Head lowered towards the ground when lying (radians). */
+const LIE_HEAD = -0.5;
+/** Waking up: shares of the wake-up time in which the head lifts and the horse stands up. */
+const WAKE_HEAD_UP = [0.35, 0.55] as const;
+const WAKE_STAND_UP = [0.6, 0.92] as const;
+
+/** Burning to death: legs give way, the horse rolls onto its side and chars. */
+const BURN_FOLD_TIME = 0.6;
+const BURN_ROLL_START = 0.35;
+const BURN_ROLL_TIME = 0.9;
+const BURN_ROLL = 1.3;
+const BURN_EXTRA_DROP = 0.12;
+const BURN_CHAR_TIME = 1.6;
+/** Charred colour: a very dark pink, so the dither turns the horse into sparse dots. */
+const CHARRED = new THREE.Color(0x2a1a22);
+/** Swallowed by ash: after death it sinks the rest of the way, head stretched up. */
+const SWALLOW_TIME = 1.8;
+const SWALLOW_EXTRA_DEPTH = 1.2;
+const SWALLOW_HEAD = 0.6;
+
+export type DeathCause = 'burnt' | 'sunk';
 
 interface Leg {
   hip: THREE.Group;
@@ -84,6 +112,11 @@ export class HorseView {
   private flash = 0;
   /** Seconds since the last hop started; >= HOP_DURATION means not hopping. */
   private hopTime = HOP_DURATION;
+  /** Lying pose for waking up: 0 = standing, 1 = lying; headDown lowers the head on its own. */
+  private lying = 0;
+  private headDown = 0;
+  private death: DeathCause | null = null;
+  private deathTime = 0;
 
   constructor() {
     const pink = this.pink;
@@ -109,27 +142,74 @@ export class HorseView {
     this.flash = 0;
     this.hopTime = HOP_DURATION;
     this.pink.color.setHex(PINK);
+    this.lying = 0;
+    this.headDown = 0;
+    this.death = null;
+    this.deathTime = 0;
+  }
+
+  /**
+   * Waking up, progress 0 → 1: lies still with the head down, lifts the head, then gets up.
+   * 1 means fully awake and standing.
+   */
+  setWake(progress: number): void {
+    this.headDown = 1 - smoothstep(WAKE_HEAD_UP[0], WAKE_HEAD_UP[1], progress);
+    this.lying = 1 - smoothstep(WAKE_STAND_UP[0], WAKE_STAND_UP[1], progress);
+  }
+
+  /** Starts the death animation for the given cause. */
+  die(cause: DeathCause): void {
+    if (this.death) return;
+    this.death = cause;
+    this.deathTime = 0;
+    this.flash = 0;
+    this.hopTime = HOP_DURATION;
   }
 
   update(horse: Horse, dt: number): void {
-    const swing = Math.min(1, horse.speed / FULL_SWING_SPEED);
-    this.phase += horse.speed * STRIDE_PER_UNIT * dt;
+    this.time += dt;
+    if (this.death) this.deathTime += dt;
+    const t = this.deathTime;
+    const burnt = this.death === 'burnt';
+    const swallowed = this.death === 'sunk';
 
-    for (const leg of this.legs) {
+    // Pose amounts: folding the legs (waking or burning) and rolling onto the side (burning).
+    const fold = Math.max(this.lying, burnt ? smoothstep(0, BURN_FOLD_TIME, t) : 0);
+    const roll = burnt ? smoothstep(BURN_ROLL_START, BURN_ROLL_START + BURN_ROLL_TIME, t) : 0;
+
+    const swing = Math.min(1, horse.speed / FULL_SWING_SPEED) * (1 - fold);
+    this.phase += horse.speed * STRIDE_PER_UNIT * dt;
+    this.legs.forEach((leg, i) => {
       const p = this.phase + leg.offset;
-      leg.hip.rotation.z = Math.sin(p) * HIP_SWING * swing;
-      leg.knee.rotation.z = -Math.max(0, Math.cos(p)) * KNEE_BEND * swing;
-    }
-    this.head.rotation.z = Math.sin(this.phase * 2) * HEAD_NOD * swing;
+      const front = i < 2;
+      const runHip = Math.sin(p) * HIP_SWING * swing;
+      const runKnee = -Math.max(0, Math.cos(p)) * KNEE_BEND * swing;
+      leg.hip.rotation.z = lerp(runHip, front ? LIE_FRONT_HIP : LIE_HIND_HIP, fold);
+      leg.knee.rotation.z = lerp(runKnee, front ? LIE_FRONT_KNEE : LIE_HIND_KNEE, fold);
+    });
+
+    const nod = Math.sin(this.phase * 2) * HEAD_NOD * swing;
+    const lowered = Math.max(this.headDown, fold) * LIE_HEAD;
+    const stretched = swallowed ? smoothstep(0, SWALLOW_TIME * 0.5, t) * SWALLOW_HEAD : 0;
+    this.head.rotation.z = nod + lowered + stretched;
 
     this.updateLean(horse, dt);
-    this.time += dt;
+    this.body.rotation.x = lerp(this.lean, BURN_ROLL, roll);
     this.updateTail(swing);
-    const hop = this.updateHurt(horse.lastDamage > 0, dt);
 
-    const sunk = -horse.sink * SINK_DEPTH;
-    this.object.position.set(horse.x, Math.abs(Math.sin(this.phase)) * BOB_HEIGHT * swing + hop + sunk, horse.z);
-    this.body.rotation.z = Math.sin(this.time * SINK_TREMBLE_SPEED) * SINK_TREMBLE * horse.sink;
+    // Hurt pulses only while alive; afterwards the colour belongs to the death animation.
+    const hop = this.death ? 0 : this.updateHurt(horse.lastDamage > 0, dt);
+    if (burnt) this.pink.color.setHex(PINK).lerp(CHARRED, smoothstep(0, BURN_CHAR_TIME, t));
+
+    // Sinking: struggles while alive, then slowly disappears with the head up once swallowed.
+    const struggle = swallowed ? 1 - smoothstep(0, SWALLOW_TIME * 0.4, t) : 1;
+    const sway = Math.sin(this.time * SINK_STRUGGLE_SPEED) * 0.7 + Math.sin(this.time * SINK_STRUGGLE_SPEED * 1.7) * 0.3;
+    this.body.rotation.z = sway * SINK_STRUGGLE * horse.sink * struggle;
+    const depth = horse.sink * SINK_DEPTH + (swallowed ? smoothstep(0, SWALLOW_TIME, t) * SWALLOW_EXTRA_DEPTH : 0);
+
+    const drop = fold * LIE_DROP + roll * BURN_EXTRA_DROP;
+    const bob = Math.abs(Math.sin(this.phase)) * BOB_HEIGHT * swing;
+    this.object.position.set(horse.x, bob + hop - drop - depth, horse.z);
     this.object.rotation.y = horse.heading;
   }
 
@@ -163,7 +243,6 @@ export class HorseView {
     // Positive turn rate = left turn; leaning left tilts the top towards local -Z.
     const target = THREE.MathUtils.clamp(-turnRate * horse.speed * LEAN_FACTOR, -LEAN_MAX, LEAN_MAX);
     this.lean += (target - this.lean) * (1 - Math.exp(-LEAN_RESPONSE * dt));
-    this.body.rotation.x = this.lean;
   }
 
   /** Swishes gently when standing; lifts and streams back with a ripple when running. */
@@ -295,4 +374,13 @@ function part(
   mesh.position.set(x, y, z);
   if (scale) mesh.scale.set(...scale);
   return mesh;
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+function smoothstep(a: number, b: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
 }
