@@ -3,6 +3,7 @@ import { FireGrid } from '../sim/FireGrid';
 import { HORSE_RADIUS, Horse, MAX_HEALTH } from '../sim/Horse';
 import { Spotting } from '../sim/Spotting';
 import { Wind } from '../sim/Wind';
+import { EdgeView } from '../render/EdgeView';
 import { FireView } from '../render/FireView';
 import { ForestView } from '../render/ForestView';
 import { GroundView } from '../render/GroundView';
@@ -37,6 +38,7 @@ export class Game {
   private spotting!: Spotting;
   private forestView?: ForestView;
   private fireView?: FireView;
+  private edgeView?: EdgeView;
   private state: GameState = 'playing';
   private elapsed = 0;
 
@@ -117,9 +119,11 @@ export class Game {
 
     this.forestView?.dispose();
     this.fireView?.dispose();
+    this.edgeView?.dispose();
     this.forestView = new ForestView(this.forest);
     this.fireView = new FireView(this.fire, this.forest, this.wind, this.spotting);
-    this.renderer.scene.add(this.forestView.object, this.fireView.object);
+    this.edgeView = new EdgeView(this.forest.edge);
+    this.renderer.scene.add(this.forestView.object, this.fireView.object, this.edgeView.object);
     this.horseView.reset();
     this.renderer.resetCamera();
     this.hud.hideMessage();
@@ -132,6 +136,7 @@ export class Game {
     this.update(dt);
     this.forestView?.update(this.fire);
     this.fireView?.update(dt, this.horse.x, this.horse.z);
+    this.edgeView?.update(dt);
     this.horseView.update(this.horse, dt);
     if (dt > 0) this.renderer.shake(this.horse.lastDamage / dt / SHAKE_FULL_DAMAGE);
     this.renderer.follow(this.horse.x, this.horse.z, dt);

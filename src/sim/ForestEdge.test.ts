@@ -31,6 +31,18 @@ describe('ForestEdge', () => {
     expect(a.radiusAt(1.234)).not.toBe(c.radiusAt(1.234));
   });
 
+  it('traces its outline with evenly spaced points on the edge', () => {
+    const edge = new ForestEdge(mulberry32(9));
+    const points = edge.outline(2);
+    expect(points.length).toBeGreaterThan(200);
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      expect(Math.abs(edge.distanceInside(p.x, p.z))).toBeLessThan(1e-6);
+      const q = points[(i + 1) % points.length];
+      expect(Math.hypot(q.x - p.x, q.z - p.z)).toBeLessThan(2.2);
+    }
+  });
+
   it('contains the centre but not points beyond the maximum radius', () => {
     const edge = new ForestEdge(mulberry32(5));
     expect(edge.contains(0, 0)).toBe(true);

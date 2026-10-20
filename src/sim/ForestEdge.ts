@@ -44,6 +44,20 @@ export class ForestEdge {
     return this.distanceInside(x, z) > 0;
   }
 
+  /** Points along the edge, roughly `spacing` apart, going once around. */
+  outline(spacing: number): { x: number; z: number }[] {
+    const points: { x: number; z: number }[] = [];
+    let angle = 0;
+    while (angle < Math.PI * 2) {
+      const r = this.radiusAt(angle);
+      points.push({ x: Math.cos(angle) * r, z: Math.sin(angle) * r });
+      // Arc length of a small angle step, including how fast the radius changes there.
+      const dr = (this.radiusAt(angle + 1e-3) - r) / 1e-3;
+      angle += spacing / Math.hypot(r, dr);
+    }
+    return points;
+  }
+
   /** Approximate enclosed area, integrated over the angle. */
   area(steps = 360): number {
     let sum = 0;
