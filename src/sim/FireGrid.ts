@@ -9,11 +9,24 @@ export const CellState = {
 } as const;
 export type CellState = (typeof CellState)[keyof typeof CellState];
 
-/** Number of places where the fire starts. */
-const ORIGIN_COUNT = 3;
-/** Distance range of the fire origins from the start (origin). */
-const ORIGIN_DISTANCE_MIN = 15;
-const ORIGIN_DISTANCE_MAX = 30;
+/** Inner ring: big fires around the start that burn from the first second. */
+const INNER_ORIGIN_COUNT = 3;
+const INNER_DISTANCE_MIN = 15;
+const INNER_DISTANCE_MAX = 30;
+/** Radius of the burning patch each inner origin starts with, in cells. */
+const INNER_PATCH_RADIUS = 3;
+/** Outer ring: small fires further out that flare up later, so escaping the middle is not the end. */
+const OUTER_ORIGIN_COUNT_MIN = 2;
+const OUTER_ORIGIN_COUNT_MAX = 3;
+/** How far towards the forest edge the outer origins lie, as a share of the edge distance. */
+const OUTER_DEPTH_MIN = 0.5;
+const OUTER_DEPTH_MAX = 0.85;
+const OUTER_PATCH_RADIUS = 1;
+/** Seconds into the run when the outer origins flare up. */
+const OUTER_DELAY_MIN = 10;
+const OUTER_DELAY_MAX = 40;
+/** Random deviation from evenly spaced directions (radians, ±). */
+const ORIGIN_ANGLE_JITTER = 0.5;
 /** Chance per second that a burning cell sets a direct neighbour alight, at the start of a run. */
 const SPREAD_RATE = 0.2;
 /** How much faster the spreading gets per second of run time (0.02 = +2 % per second). */
@@ -37,6 +50,15 @@ const BLOCK_INTENSITY = 0.3;
 /** Burning cells within this distance radiate heat. */
 export const HEAT_RADIUS = 3;
 
+export interface ScheduledFire {
+  /** Centre cell of the patch. */
+  cell: number;
+  /** Patch radius in cells. */
+  radius: number;
+  /** Run time in seconds when it flares up. */
+  at: number;
+}
+
 /** Fire simulation on a square cell grid covering the world. Pure logic, no rendering. */
 export class FireGrid {
   readonly size = GRID_SIZE;
@@ -53,6 +75,8 @@ export class FireGrid {
   burntOut: number[] = [];
   /** Run time in seconds; drives the growing spread rate. */
   elapsed = 0;
+  /** Fires that have not started yet, sorted by start time. */
+  readonly scheduled: ScheduledFire[] = [];
 
   constructor(
     private readonly forest: Forest,
@@ -62,7 +86,7 @@ export class FireGrid {
       const c = this.cellOf(tree.x, tree.z);
       if (c >= 0) this.cellTree[c] = i;
     });
-    this.igniteOrigins();
+    this.placeOrigins();
   }
 
   /** Cell index for a world position, or -1 outside the grid. */
@@ -102,6 +126,10 @@ export class FireGrid {
 
   update(dt: number): void {
     this.elapsed += dt;
+    while (this.scheduled.length > 0 && this.scheduled[0].at <= this.elapsed) {
+      const fire = this.scheduled.shift()!;
+      this.ignitePatch(fire.cell, fire.radius);
+    }
     const rate = SPREAD_RATE * (1 + this.elapsed * SPREAD_GROWTH);
     const list = this.burning;
     this.burning = [];
@@ -191,17 +219,48 @@ export class FireGrid {
     if (t >= 0) this.forest.trees[t].charred = true;
   }
 
-  /** Each origin lights a small 3×3 patch so it reliably takes hold. */
-  private igniteOrigins(): void {
-    for (let n = 0; n < ORIGIN_COUNT; n++) {
-      const angle = this.rng() * Math.PI * 2;
-      const dist = ORIGIN_DISTANCE_MIN + this.rng() * (ORIGIN_DISTANCE_MAX - ORIGIN_DISTANCE_MIN);
-      const centre = this.cellOf(Math.cos(angle) * dist, Math.sin(angle) * dist);
-      if (centre < 0) continue;
-      const ci = centre % this.size;
-      const cj = Math.floor(centre / this.size);
-      for (let dj = -1; dj <= 1; dj++) {
-        for (let di = -1; di <= 1; di++) this.ignite((cj + dj) * this.size + (ci + di));
+  /**
+   * Inner origins burn right away as big patches around the start. Outer origins lie
+   * between them, further towards the edge, and are scheduled to flare up later.
+   */
+  private placeOrigins(): void {
+    const base = this.rng() * Math.PI * 2;
+    for (const angle of this.spreadAngles(base, INNER_ORIGIN_COUNT)) {
+      const dist = lerp(INNER_DISTANCE_MIN, INNER_DISTANCE_MAX, this.rng());
+      const cell = this.cellOf(Math.cos(angle) * dist, Math.sin(angle) * dist);
+      if (cell >= 0) this.ignitePatch(cell, INNER_PATCH_RADIUS);
+    }
+
+    const outerCount = OUTER_ORIGIN_COUNT_MIN + Math.floor(this.rng() * (OUTER_ORIGIN_COUNT_MAX - OUTER_ORIGIN_COUNT_MIN + 1));
+    // Offset by half a gap of the inner ring, so outer fires sit between the inner ones.
+    for (const angle of this.spreadAngles(base + Math.PI / INNER_ORIGIN_COUNT, outerCount)) {
+      const dist = this.forest.edge.radiusAt(angle) * lerp(OUTER_DEPTH_MIN, OUTER_DEPTH_MAX, this.rng());
+      const cell = this.cellOf(Math.cos(angle) * dist, Math.sin(angle) * dist);
+      const at = lerp(OUTER_DELAY_MIN, OUTER_DELAY_MAX, this.rng());
+      if (cell >= 0) this.scheduled.push({ cell, radius: OUTER_PATCH_RADIUS, at });
+    }
+    this.scheduled.sort((a, b) => a.at - b.at);
+  }
+
+  /** `count` directions evenly spaced around the circle, each nudged a little at random. */
+  private spreadAngles(base: number, count: number): number[] {
+    return Array.from(
+      { length: count },
+      (_, k) => base + (k * Math.PI * 2) / count + (this.rng() * 2 - 1) * ORIGIN_ANGLE_JITTER,
+    );
+  }
+
+  /** Lights a round patch of cells so a fire reliably takes hold. */
+  private ignitePatch(centre: number, radius: number): void {
+    const ci = centre % this.size;
+    const cj = Math.floor(centre / this.size);
+    for (let dj = -radius; dj <= radius; dj++) {
+      for (let di = -radius; di <= radius; di++) {
+        const i = ci + di;
+        const j = cj + dj;
+        if (di * di + dj * dj > radius * radius + radius) continue;
+        if (i < 0 || j < 0 || i >= this.size || j >= this.size) continue;
+        this.ignite(j * this.size + i);
       }
     }
   }
@@ -215,4 +274,8 @@ export class FireGrid {
       for (let i = i0; i <= i1; i++) fn(j * this.size + i);
     }
   }
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
 }

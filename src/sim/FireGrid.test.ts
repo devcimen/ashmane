@@ -20,14 +20,46 @@ function count(fire: FireGrid, state: CellState): number {
 }
 
 describe('FireGrid', () => {
-  it('starts with three 3×3 fire origins away from the start', () => {
+  it('starts with big inner fires around, but not at, the start', () => {
     const { fire } = setup();
-    expect(fire.burning.length).toBe(27);
+    expect(fire.burning.length).toBeGreaterThan(3 * 20);
     for (const c of fire.burning) {
       const d = Math.hypot(fire.cellX(c), fire.cellZ(c));
-      expect(d).toBeGreaterThan(12);
-      expect(d).toBeLessThan(33);
+      expect(d).toBeGreaterThan(9);
+      expect(d).toBeLessThan(36);
     }
+  });
+
+  it('spreads the inner fires around the start instead of clustering them', () => {
+    for (const seed of [1, 4, 7]) {
+      const { fire } = setup(seed);
+      const angles = fire.burning.map((c) => Math.atan2(fire.cellZ(c), fire.cellX(c)));
+      // No half of the circle may be free of fire.
+      for (let a = -Math.PI; a < Math.PI; a += 0.1) {
+        const inHalf = angles.some((b) => Math.cos(b - a) > 0);
+        expect(inHalf).toBe(true);
+      }
+    }
+  });
+
+  it('schedules smaller outer fires towards the edge that flare up later', () => {
+    const { forest, fire } = setup();
+    expect(fire.scheduled.length).toBeGreaterThanOrEqual(2);
+    expect(fire.scheduled.length).toBeLessThanOrEqual(3);
+    for (const s of fire.scheduled) {
+      expect(s.at).toBeGreaterThanOrEqual(10);
+      expect(s.at).toBeLessThanOrEqual(40);
+      const x = fire.cellX(s.cell);
+      const z = fire.cellZ(s.cell);
+      const share = Math.hypot(x, z) / forest.edge.radiusAt(Math.atan2(z, x));
+      expect(share).toBeGreaterThan(0.48);
+      expect(share).toBeLessThan(0.87);
+      expect(fire.state[s.cell]).toBe(CellState.Fresh);
+    }
+    const outer = [...fire.scheduled];
+    run(fire, 41);
+    expect(fire.scheduled).toEqual([]);
+    for (const s of outer) expect(fire.state[s.cell]).not.toBe(CellState.Fresh);
   });
 
   it('spreads and leaves burnt cells behind', () => {
