@@ -82,6 +82,7 @@ export class Game {
     this.horse.applyHeat(this.fire.heatAt(this.horse.x, this.horse.z), dt);
 
     this.hud.setHealth(this.horse.health / MAX_HEALTH);
+    this.hud.setWind(this.wind.angle, this.wind.strength);
 
     if (this.state !== 'playing') return;
     if (!this.horse.alive) this.end('dead', 'Verbrannt');
@@ -117,7 +118,7 @@ export class Game {
     this.forestView?.dispose();
     this.fireView?.dispose();
     this.forestView = new ForestView(this.forest);
-    this.fireView = new FireView(this.fire, this.forest);
+    this.fireView = new FireView(this.fire, this.forest, this.wind, this.spotting);
     this.renderer.scene.add(this.forestView.object, this.fireView.object);
     this.horseView.reset();
     this.renderer.resetCamera();
