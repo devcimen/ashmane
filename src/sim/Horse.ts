@@ -25,6 +25,15 @@ const EXPOSURE_MAX = 4;
 /** Seconds of exposure that wear off per second out of the heat. */
 const EXPOSURE_RECOVERY = 1;
 
+/** Seconds a standing horse takes to sink completely into burnt ground. */
+const SINK_TIME = 6;
+/** At full gallop the horse sinks only at this share of the standing rate. */
+const SINK_GALLOP_SHARE = 0.08;
+/** Off the ash the horse climbs back out this many times faster than it sank. */
+const SINK_RECOVERY = 2;
+/** Share of the top speed lost when sunk in completely; it is like running through quicksand. */
+const SINK_SLOWDOWN = 0.5;
+
 /**
  * Horse state on the ground plane. Pure logic, no rendering.
  * The horse always runs forward along its heading; the input only says where it wants to go.
@@ -43,12 +52,18 @@ export class Horse {
   exposure = 0;
   /** Health lost in the last applyHeat call; lets the views react to hits. */
   lastDamage = 0;
+  /** How deep the horse has sunk into burnt ground: 0 = on top, 1 = swallowed. */
+  sink = 0;
 
   private dirX = 0;
   private dirZ = 0;
 
   get alive(): boolean {
-    return this.health > 0;
+    return this.health > 0 && !this.sunk;
+  }
+
+  get sunk(): boolean {
+    return this.sink >= 1;
   }
 
   get vx(): number {
@@ -87,6 +102,20 @@ export class Horse {
   }
 
   /**
+   * Burnt ground swallows the horse: on ash it sinks, the slower it is the faster,
+   * so crossing is fine but waiting is not. Off the ash it climbs back out.
+   */
+  applyGround(onAsh: boolean, dt: number): void {
+    if (onAsh) {
+      const gallop = Math.min(1, this.speed / MAX_SPEED);
+      const rate = (1 - (1 - SINK_GALLOP_SHARE) * gallop) / SINK_TIME;
+      this.sink = Math.min(1, this.sink + rate * dt);
+    } else {
+      this.sink = Math.max(0, this.sink - (SINK_RECOVERY / SINK_TIME) * dt);
+    }
+  }
+
+  /**
    * Reacts to running into an obstacle whose surface points along (nx, nz).
    * Head-on loses all speed, grazing keeps most of it, so the horse slides along.
    */
@@ -104,7 +133,8 @@ export class Horse {
     this.heading += clamp(angleDiff(desired, this.heading), -maxStep, maxStep);
     // The further the horse still has to turn, the more it slows down.
     const remaining = angleDiff(desired, this.heading);
-    return MAX_SPEED * clamp(Math.cos(remaining), CORNER_SPEED_MIN, 1);
+    const stuck = 1 - SINK_SLOWDOWN * this.sink;
+    return MAX_SPEED * stuck * clamp(Math.cos(remaining), CORNER_SPEED_MIN, 1);
   }
 
   /** Exponential approach: quick start, soft settling, smooth coasting. */

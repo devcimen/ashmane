@@ -41,6 +41,12 @@ const HOP_HEIGHT = 0.35;
 const HOP_DURATION = 0.3;
 const WHITE = new THREE.Color(0xffffff);
 
+/** How far the model sinks into the ground when fully swallowed by ash; leaves the head out. */
+const SINK_DEPTH = 1.5;
+/** The deeper it sinks, the more the horse trembles, as if fighting its way out. */
+const SINK_TREMBLE = 0.06;
+const SINK_TREMBLE_SPEED = 38;
+
 interface Leg {
   hip: THREE.Group;
   knee: THREE.Group;
@@ -121,7 +127,9 @@ export class HorseView {
     this.updateTail(swing);
     const hop = this.updateHurt(horse.lastDamage > 0, dt);
 
-    this.object.position.set(horse.x, Math.abs(Math.sin(this.phase)) * BOB_HEIGHT * swing + hop, horse.z);
+    const sunk = -horse.sink * SINK_DEPTH;
+    this.object.position.set(horse.x, Math.abs(Math.sin(this.phase)) * BOB_HEIGHT * swing + hop + sunk, horse.z);
+    this.body.rotation.z = Math.sin(this.time * SINK_TREMBLE_SPEED) * SINK_TREMBLE * horse.sink;
     this.object.rotation.y = horse.heading;
   }
 

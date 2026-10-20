@@ -145,6 +145,47 @@ describe('Horse', () => {
     expect(horse.alive).toBe(false);
   });
 
+  it('sinks into ash and dies when standing on it for about six seconds', () => {
+    const horse = new Horse();
+    for (let t = 0; t < 5.5; t += DT) horse.applyGround(true, DT);
+    expect(horse.sink).toBeGreaterThan(0.85);
+    expect(horse.alive).toBe(true);
+    for (let t = 0; t < 1; t += DT) horse.applyGround(true, DT);
+    expect(horse.sunk).toBe(true);
+    expect(horse.alive).toBe(false);
+  });
+
+  it('crosses ash at a gallop for much longer', () => {
+    const horse = gallopingHorse();
+    let seconds = 0;
+    while (horse.alive && seconds < 60) {
+      horse.update(DT);
+      horse.applyGround(true, DT);
+      seconds += DT;
+    }
+    expect(seconds).toBeGreaterThan(18);
+    expect(seconds).toBeLessThan(32);
+  });
+
+  it('climbs back out of the ash on normal ground', () => {
+    const horse = new Horse();
+    for (let t = 0; t < 3; t += DT) horse.applyGround(true, DT);
+    const deep = horse.sink;
+    for (let t = 0; t < 1; t += DT) horse.applyGround(false, DT);
+    expect(horse.sink).toBeLessThan(deep - 0.25);
+    for (let t = 0; t < 3; t += DT) horse.applyGround(false, DT);
+    expect(horse.sink).toBe(0);
+  });
+
+  it('is slowed down while sunk in', () => {
+    const free = gallopingHorse();
+    const stuck = gallopingHorse();
+    stuck.sink = 0.8;
+    run(free, 2);
+    run(stuck, 2);
+    expect(stuck.speed).toBeLessThan(free.speed * 0.7);
+  });
+
   it('turns tighter when slow than at full gallop', () => {
     const slow = new Horse();
     slow.speed = 1;
