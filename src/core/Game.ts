@@ -1,6 +1,7 @@
 import { type Collision, Forest } from '../sim/Forest';
 import { FireGrid } from '../sim/FireGrid';
 import { HORSE_RADIUS, Horse, MAX_HEALTH } from '../sim/Horse';
+import { Spotting } from '../sim/Spotting';
 import { Wind } from '../sim/Wind';
 import { FireView } from '../render/FireView';
 import { ForestView } from '../render/ForestView';
@@ -14,6 +15,7 @@ import { mulberry32, randomSeed } from './random';
 const MAX_DT = 0.05;
 const FIRE_SEED_SALT = 0x5f3759df;
 const WIND_SEED_SALT = 0x2545f491;
+const SPOT_SEED_SALT = 0x1b873593;
 /** Damage per second that shakes the camera at full strength; less damage shakes less. */
 const SHAKE_FULL_DAMAGE = 60;
 
@@ -32,6 +34,7 @@ export class Game {
   private forest!: Forest;
   private wind!: Wind;
   private fire!: FireGrid;
+  private spotting!: Spotting;
   private forestView?: ForestView;
   private fireView?: FireView;
   private state: GameState = 'playing';
@@ -75,6 +78,7 @@ export class Game {
     this.resolve(this.forest.collide(this.horse.x, this.horse.z, HORSE_RADIUS));
     this.wind.update(dt);
     this.fire.update(dt);
+    this.spotting.update(dt, this.horse);
     this.horse.applyHeat(this.fire.heatAt(this.horse.x, this.horse.z), dt);
 
     this.hud.setHealth(this.horse.health / MAX_HEALTH);
@@ -106,6 +110,7 @@ export class Game {
     // Separate random stream, so the forest layout does not depend on how the fire rolls.
     this.wind = new Wind(mulberry32(seed ^ WIND_SEED_SALT));
     this.fire = new FireGrid(this.forest, mulberry32(seed ^ FIRE_SEED_SALT), this.wind);
+    this.spotting = new Spotting(this.fire, this.forest, this.wind, mulberry32(seed ^ SPOT_SEED_SALT));
     this.state = 'playing';
     this.elapsed = 0;
 

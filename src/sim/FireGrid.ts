@@ -231,7 +231,7 @@ export class FireGrid {
   }
 
   /** Lights a round patch of cells so a fire reliably takes hold. */
-  private ignitePatch(centre: number, radius: number): void {
+  ignitePatch(centre: number, radius: number): void {
     const ci = centre % this.size;
     const cj = Math.floor(centre / this.size);
     for (let dj = -radius; dj <= radius; dj++) {
