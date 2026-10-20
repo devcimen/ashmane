@@ -5,7 +5,7 @@ const CAMERA_OFFSET = new THREE.Vector3(0, 12, 12);
 /** How quickly the camera catches up with the horse (1/s). Lower = more trailing. */
 const CAMERA_RESPONSE = 5;
 /** Largest camera shake offset in world units, at full shake. */
-const SHAKE_MAX = 0.35;
+const SHAKE_MAX = 0.1;
 /** How quickly the shake fades once it is no longer fed (1/s). */
 const SHAKE_DECAY = 2.5;
 

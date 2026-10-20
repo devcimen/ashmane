@@ -13,7 +13,7 @@ import { mulberry32, randomSeed } from './random';
 const MAX_DT = 0.05;
 const FIRE_SEED_SALT = 0x5f3759df;
 /** Damage per second that shakes the camera at full strength; less damage shakes less. */
-const SHAKE_FULL_DAMAGE = 40;
+const SHAKE_FULL_DAMAGE = 60;
 
 type GameState = 'playing' | 'won' | 'dead';
 
