@@ -12,6 +12,18 @@ const TURN_SLOW = 6;
 const TURN_FAST = 2.5;
 /** Lowest speed factor in sharp turns; a U-turn slows down to this share of MAX_SPEED. */
 const CORNER_SPEED_MIN = 0.25;
+/** Size of the horse as a circle on the ground, for collisions. */
+export const HORSE_RADIUS = 0.45;
+
+export const MAX_HEALTH = 100;
+/** Health lost per second per unit of heat (one full-strength flame right next to the horse ≈ 1). */
+const DAMAGE_PER_HEAT = 8;
+/** Extra damage per second spent in the heat without a break (0.5 = +50 % per second). */
+const EXPOSURE_GAIN = 0.5;
+/** Exposure stops growing after this many seconds. */
+const EXPOSURE_MAX = 4;
+/** Seconds of exposure that wear off per second out of the heat. */
+const EXPOSURE_RECOVERY = 1;
 
 /**
  * Horse state on the ground plane. Pure logic, no rendering.
@@ -26,9 +38,18 @@ export class Horse {
    * positive values turn towards -Z (same convention as Three.js rotation.y).
    */
   heading = 0;
+  health = MAX_HEALTH;
+  /** Seconds spent in the heat without a break; makes staying close to the fire worse and worse. */
+  exposure = 0;
+  /** Health lost in the last applyHeat call; lets the views react to hits. */
+  lastDamage = 0;
 
   private dirX = 0;
   private dirZ = 0;
+
+  get alive(): boolean {
+    return this.health > 0;
+  }
 
   get vx(): number {
     return Math.cos(this.heading) * this.speed;
@@ -50,6 +71,29 @@ export class Horse {
     this.updateSpeed(targetSpeed, wantsToMove ? SPEED_RESPONSE : BRAKE_RESPONSE, dt);
     this.x += this.vx * dt;
     this.z += this.vz * dt;
+  }
+
+  /** Takes damage from the heat at its position; the longer it stays in the heat, the more it hurts. */
+  applyHeat(heat: number, dt: number): void {
+    const before = this.health;
+    if (heat > 0) {
+      this.exposure = Math.min(EXPOSURE_MAX, this.exposure + dt);
+      this.health -= heat * DAMAGE_PER_HEAT * (1 + this.exposure * EXPOSURE_GAIN) * dt;
+      this.health = Math.max(0, this.health);
+    } else {
+      this.exposure = Math.max(0, this.exposure - EXPOSURE_RECOVERY * dt);
+    }
+    this.lastDamage = before - this.health;
+  }
+
+  /**
+   * Reacts to running into an obstacle whose surface points along (nx, nz).
+   * Head-on loses all speed, grazing keeps most of it, so the horse slides along.
+   */
+  bump(nx: number, nz: number): void {
+    const into = -(Math.cos(this.heading) * nx - Math.sin(this.heading) * nz);
+    if (into <= 0) return;
+    this.speed *= Math.sqrt(Math.max(0, 1 - into * into));
   }
 
   /** Turns towards the desired direction and returns the speed the horse aims for. */

@@ -5,7 +5,7 @@ import type { Horse } from '../sim/Horse';
 const PINK = 0xffa3d4;
 const MANE = 0xe6e6e6;
 const HOOF = 0x777777;
-const MODEL_SCALE = 1.25;
+const MODEL_SCALE = 0.7;
 
 /** Leg cycle advance per unit travelled (radians). */
 const STRIDE_PER_UNIT = 1.4;
@@ -33,6 +33,14 @@ const TAIL_SWISH_SPEED = 1.2;
 /** Wave travelling down each strand (radians per segment). */
 const TAIL_WAVE = 0.12;
 
+/** While taking damage, the horse flashes white and hops this often (seconds). */
+const HURT_PULSE = 0.6;
+/** How long a white flash takes to fade (seconds). */
+const FLASH_DURATION = 0.15;
+const HOP_HEIGHT = 0.35;
+const HOP_DURATION = 0.3;
+const WHITE = new THREE.Color(0xffffff);
+
 interface Leg {
   hip: THREE.Group;
   knee: THREE.Group;
@@ -59,14 +67,20 @@ export class HorseView {
   private readonly tail = new THREE.Group();
   private readonly tailStrands: TailStrand[] = [];
   private readonly light = new THREE.PointLight(0xffffff, 0.5 * Math.PI, 9, 1.5);
+  private readonly pink = new THREE.MeshLambertMaterial({ color: PINK });
 
   private phase = 0;
   private lean = 0;
   private time = 0;
   private lastHeading: number | null = null;
+  /** Seconds until the next hurt pulse may fire; <= 0 means ready. */
+  private hurtCooldown = 0;
+  private flash = 0;
+  /** Seconds since the last hop started; >= HOP_DURATION means not hopping. */
+  private hopTime = HOP_DURATION;
 
   constructor() {
-    const pink = new THREE.MeshLambertMaterial({ color: PINK });
+    const pink = this.pink;
     const mane = new THREE.MeshLambertMaterial({ color: MANE });
     const hoof = new THREE.MeshLambertMaterial({ color: HOOF });
 
@@ -79,6 +93,16 @@ export class HorseView {
     this.object.add(this.body);
     this.light.position.y = 4;
     this.object.add(this.light);
+  }
+
+  /** Forgets the previous run so the first frame of a new one does not lean or jump. */
+  reset(): void {
+    this.lean = 0;
+    this.lastHeading = null;
+    this.hurtCooldown = 0;
+    this.flash = 0;
+    this.hopTime = HOP_DURATION;
+    this.pink.color.setHex(PINK);
   }
 
   update(horse: Horse, dt: number): void {
@@ -95,9 +119,29 @@ export class HorseView {
     this.updateLean(horse, dt);
     this.time += dt;
     this.updateTail(swing);
+    const hop = this.updateHurt(horse.lastDamage > 0, dt);
 
-    this.object.position.set(horse.x, Math.abs(Math.sin(this.phase)) * BOB_HEIGHT * swing, horse.z);
+    this.object.position.set(horse.x, Math.abs(Math.sin(this.phase)) * BOB_HEIGHT * swing + hop, horse.z);
     this.object.rotation.y = horse.heading;
+  }
+
+  /**
+   * While the horse takes damage it pulses: a short white flash and a small startled hop,
+   * repeated every HURT_PULSE seconds. Returns the current hop height.
+   */
+  private updateHurt(hurting: boolean, dt: number): number {
+    this.hurtCooldown -= dt;
+    if (hurting && this.hurtCooldown <= 0) {
+      this.hurtCooldown = HURT_PULSE;
+      this.flash = 1;
+      this.hopTime = 0;
+    }
+    this.flash = Math.max(0, this.flash - dt / FLASH_DURATION);
+    this.pink.color.setHex(PINK).lerp(WHITE, this.flash);
+
+    this.hopTime += dt;
+    if (this.hopTime >= HOP_DURATION) return 0;
+    return Math.sin((this.hopTime / HOP_DURATION) * Math.PI) * HOP_HEIGHT;
   }
 
   /** Leans into the curve: stronger the faster the horse turns and runs. */

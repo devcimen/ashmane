@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import { mulberry32 } from '../core/random';
+import { WORLD_HALF } from '../sim/world';
 
-const GROUND_SIZE = 160;
+/** Reaches well past the world so the horizon never shows an edge. */
+const GROUND_SIZE = WORLD_HALF * 2 + 100;
 const GROUND_COLOR = 0x6a6a6a;
 const TEXTURE_SIZE = 256;
-const TEXTURE_REPEAT = 14;
+/** World units covered by one texture tile. */
+const TEXTURE_TILE = 11.5;
 
 /** Large ground plane with a grey blotch texture that gives the dither something to chew on. */
 export class GroundView {
@@ -13,7 +16,7 @@ export class GroundView {
   constructor() {
     const texture = new THREE.CanvasTexture(createNoiseCanvas());
     texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(TEXTURE_REPEAT, TEXTURE_REPEAT);
+    texture.repeat.set(GROUND_SIZE / TEXTURE_TILE, GROUND_SIZE / TEXTURE_TILE);
 
     this.object = new THREE.Mesh(
       new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE),
