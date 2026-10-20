@@ -9,6 +9,7 @@ import { ForestView } from '../render/ForestView';
 import { GroundView } from '../render/GroundView';
 import { HorseView } from '../render/HorseView';
 import { Hud } from '../render/Hud';
+import { Menu } from '../render/Menu';
 import { Renderer } from '../render/Renderer';
 import { Input } from './Input';
 import { mulberry32, randomSeed } from './random';
@@ -23,7 +24,7 @@ const SHAKE_FULL_DAMAGE = 60;
 const WAKE_DURATION = 3.4;
 const WAKE_FADE = 2;
 
-type GameState = 'waking' | 'playing' | 'won' | 'dead';
+type GameState = 'menu' | 'waking' | 'playing' | 'won' | 'dead';
 
 /** Owns the main loop and the run state, and wires simulation and rendering together. */
 export class Game {
@@ -31,6 +32,7 @@ export class Game {
   private readonly renderer: Renderer;
   private readonly hud: Hud;
   private readonly horseView = new HorseView();
+  private readonly menu: Menu;
 
   // Everything below is replaced on every new run.
   private seed = 0;
@@ -42,7 +44,7 @@ export class Game {
   private forestView?: ForestView;
   private fireView?: FireView;
   private edgeView?: EdgeView;
-  private state: GameState = 'waking';
+  private state: GameState = 'menu';
   private elapsed = 0;
   private wakeTime = 0;
 
@@ -53,7 +55,9 @@ export class Game {
     this.renderer = new Renderer(container);
     this.hud = new Hud(container);
     this.renderer.scene.add(new GroundView().object, this.horseView.object);
-    this.newRun(seed);
+    // The first forest is built behind the menu; the run begins once the menu closes.
+    this.buildRun(seed);
+    this.menu = new Menu(container);
   }
 
   start(): void {
@@ -66,9 +70,16 @@ export class Game {
   }
 
   update(dt: number): void {
+    if (this.state === 'menu') {
+      this.menu.update(dt, this.input.consumePress('Enter', 'Space'));
+      if (this.menu.done) this.beginRun();
+      return;
+    }
+
     const restart = this.input.consumePress('Enter', 'KeyR');
     if ((this.state === 'won' || this.state === 'dead') && restart) {
-      this.newRun(randomSeed());
+      this.buildRun(randomSeed());
+      this.beginRun();
       return;
     }
 
@@ -121,8 +132,8 @@ export class Game {
     this.horse.bump(hit.nx, hit.nz);
   }
 
-  /** Builds a fresh forest from the seed and puts the horse back in the middle. */
-  private newRun(seed: number): void {
+  /** Builds a fresh forest from the seed and puts the horse back in the middle, lying down. */
+  private buildRun(seed: number): void {
     this.seed = seed;
     console.info(`Ashmane seed: ${seed}`);
     this.forest = new Forest(mulberry32(seed));
@@ -131,9 +142,7 @@ export class Game {
     this.wind = new Wind(mulberry32(seed ^ WIND_SEED_SALT));
     this.fire = new FireGrid(this.forest, mulberry32(seed ^ FIRE_SEED_SALT), this.wind);
     this.spotting = new Spotting(this.fire, this.forest, this.wind, mulberry32(seed ^ SPOT_SEED_SALT));
-    this.state = 'waking';
     this.elapsed = 0;
-    this.wakeTime = 0;
 
     this.forestView?.dispose();
     this.fireView?.dispose();
@@ -145,6 +154,12 @@ export class Game {
     this.horseView.reset();
     this.horseView.setWake(0);
     this.renderer.resetCamera();
+  }
+
+  /** Starts the run: fade in from black while the horse wakes up. */
+  private beginRun(): void {
+    this.state = 'waking';
+    this.wakeTime = 0;
     this.hud.hideEnd();
     this.hud.fadeIn(WAKE_FADE);
   }
