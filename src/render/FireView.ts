@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { FireGrid } from '../sim/FireGrid';
 import type { Forest, TreeType } from '../sim/Forest';
+import type { Spotting } from '../sim/Spotting';
+import type { Wind } from '../sim/Wind';
 import { CELL_SIZE, GRID_SIZE } from '../sim/world';
 
 /** Only fire within this distance of the camera focus is drawn. */
@@ -14,8 +16,20 @@ const LIGHT_COUNT = 6;
 const LIGHT_RETARGET = 0.5;
 /** How quickly the lights glide to their new spots (1/s). */
 const LIGHT_RESPONSE = 2.5;
-const EMBER_COUNT = 170;
-const EMBER_MAX_HEIGHT = 6.5;
+const SPARK_COUNT = 170;
+const SPARK_MAX_HEIGHT = 6.5;
+/** How far rising sparks are carried by the wind per unit of height. */
+const SPARK_WIND_DRIFT = 0.5;
+/** How far flames lean with the wind at normal strength (radians). */
+const FLAME_LEAN = 0.25;
+/** Embers flying from a fire to where they start a new one: points drawn per ember (head and trail). */
+const MAX_FLYING_EMBERS = 64;
+const EMBER_TRAIL = 4;
+/** Trail spacing as a share of the flight. */
+const EMBER_TRAIL_STEP = 0.035;
+/** Peak height of an ember's arc: base plus a share of the throw distance. */
+const EMBER_ARC_BASE = 2;
+const EMBER_ARC_PER_UNIT = 0.25;
 
 /** Flame size per tree type: base radius and height, from the look prototype. */
 const TREE_FLAME: Record<TreeType, { radius: number; height: number }> = {
@@ -35,7 +49,8 @@ interface FireLight {
   want: number;
 }
 
-interface Ember {
+/** A spark rising from a fire, purely decorative. */
+interface Spark {
   x: number;
   z: number;
   y: number;
@@ -44,8 +59,9 @@ interface Ember {
 }
 
 /**
- * Draws the fire: flame cones on burning trees and ground cells, glow discs, a few moving
- * point lights, rising embers, and a burn map that darkens burnt ground.
+ * Draws the fire: flame cones on burning trees and ground cells (leaning with the wind),
+ * glow discs, a few moving point lights, rising sparks, embers flying ahead to start new
+ * fires, and a burn map that darkens burnt ground.
  */
 export class FireView {
   readonly object = new THREE.Group();
@@ -58,9 +74,15 @@ export class FireView {
   private readonly glowMaterial = flameMaterial();
   private readonly lights: FireLight[] = [];
   private lightTimer = 0;
-  private readonly embers: Ember[] = [];
-  private readonly emberPositions = new Float32Array(EMBER_COUNT * 3);
-  private readonly emberGeometry = new THREE.BufferGeometry();
+  private readonly sparks: Spark[] = [];
+  private readonly sparkPositions = new Float32Array(SPARK_COUNT * 3);
+  private readonly sparkGeometry = new THREE.BufferGeometry();
+  private readonly flyingPositions = new Float32Array(MAX_FLYING_EMBERS * EMBER_TRAIL * 3);
+  private readonly flyingGeometry = new THREE.BufferGeometry();
+  /** Lean of the flames this frame: rotation axis and angle. */
+  private readonly leanAxis = new THREE.Vector3();
+  private leanAngle = 0;
+  private readonly spin = new THREE.Quaternion();
   private readonly burnCanvas = document.createElement('canvas');
   private readonly burnContext: CanvasRenderingContext2D;
   private readonly burnTexture: THREE.CanvasTexture;
@@ -70,6 +92,8 @@ export class FireView {
   constructor(
     private readonly fire: FireGrid,
     private readonly forest: Forest,
+    private readonly wind: Wind,
+    private readonly spotting: Spotting,
   ) {
     const flameGeometry = new THREE.ConeGeometry(1, 1, 7);
     flameGeometry.translate(0, 0.5, 0);
@@ -90,16 +114,15 @@ export class FireView {
       this.lights.push({ light, x: 0, y: 1, z: 0, tx: 0, ty: 1, tz: 0, on: 0, want: 0 });
     }
 
-    for (let i = 0; i < EMBER_COUNT; i++) {
-      this.embers.push({ x: 0, z: 0, y: 99, speed: 1.2 + Math.random() * 2, drift: (Math.random() - 0.5) * 0.8 });
+    for (let i = 0; i < SPARK_COUNT; i++) {
+      this.sparks.push({ x: 0, z: 0, y: 99, speed: 1.2 + Math.random() * 2, drift: (Math.random() - 0.5) * 0.8 });
     }
-    this.emberGeometry.setAttribute('position', new THREE.BufferAttribute(this.emberPositions, 3));
-    const embers = new THREE.Points(
-      this.emberGeometry,
-      new THREE.PointsMaterial({ color: new THREE.Color(1, 0.12, 0.12), size: 2, sizeAttenuation: false }),
-    );
-    embers.frustumCulled = false;
-    this.object.add(embers);
+    this.sparkGeometry.setAttribute('position', new THREE.BufferAttribute(this.sparkPositions, 3));
+    this.object.add(points(this.sparkGeometry, 2));
+
+    this.flyingGeometry.setAttribute('position', new THREE.BufferAttribute(this.flyingPositions, 3));
+    this.flyingGeometry.setDrawRange(0, 0);
+    this.object.add(points(this.flyingGeometry, 3));
 
     this.burnCanvas.width = this.burnCanvas.height = GRID_SIZE;
     this.burnContext = this.burnCanvas.getContext('2d')!;
@@ -125,9 +148,14 @@ export class FireView {
     setFireColor(this.groundFlameMaterial, 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(t * 8.2 + 0.7)));
     setFireColor(this.glowMaterial, 0.3 + 0.12 * Math.sin(t * 5));
 
+    // Flames lean towards where the wind blows: rotate up towards the wind direction.
+    this.leanAxis.set(this.wind.dirZ, 0, -this.wind.dirX);
+    this.leanAngle = FLAME_LEAN * this.wind.strength;
+
     const near = this.updateFlames(focusX, focusZ);
     this.updateLights(dt, near);
-    this.updateEmbers(dt, near);
+    this.updateSparks(dt, near);
+    this.updateFlyingEmbers();
     this.updateBurnMap();
   }
 
@@ -165,7 +193,7 @@ export class FireView {
         const h = (0.35 + 0.65 * k) * fl;
         const w = size.radius * tree.scale * (0.85 + 0.15 * fl);
         const s = tree.scale;
-        d.rotation.set(0, t * 1.2 + tree.rotation, 0);
+        this.orient(t * 1.2 + tree.rotation);
         d.position.set(tree.x, 0, tree.z);
         d.scale.set(w, size.height * s * h, w);
         this.setAt(this.treeFlames[0], trees);
@@ -178,11 +206,12 @@ export class FireView {
         trees++;
       } else if (treeIndex < 0 && ground < MAX_GROUND_FLAMES) {
         const fl = 0.7 + 0.3 * Math.sin(t * 8 + c) + 0.15 * Math.sin(t * 15 + c * 0.7);
-        d.rotation.set(0, c, 0);
+        this.orient(c);
         d.position.set(x, 0, z);
         d.scale.set(1, (0.5 + 1.1 * k) * fl, 1);
         this.setAt(this.groundFlames, ground);
         const g = (0.95 + 0.2 * fl) * (0.5 + 0.5 * k);
+        d.rotation.set(0, 0, 0); // the glow disc lies flat
         d.position.set(x, 0.03, z);
         d.scale.set(g, 1, g);
         this.setAt(this.glow, ground);
@@ -225,26 +254,54 @@ export class FireView {
     });
   }
 
-  /** Embers rise from random burning cells near the focus and drift a little. */
-  private updateEmbers(dt: number, near: number[]): void {
-    const { fire } = this;
-    this.embers.forEach((e, i) => {
-      e.y += e.speed * dt;
-      if (e.y > EMBER_MAX_HEIGHT) {
+  /** Sparks rise from random burning cells near the focus, flutter and get carried by the wind. */
+  private updateSparks(dt: number, near: number[]): void {
+    const { fire, wind } = this;
+    const carry = SPARK_WIND_DRIFT * wind.strength;
+    this.sparks.forEach((s, i) => {
+      s.y += s.speed * dt;
+      if (s.y > SPARK_MAX_HEIGHT) {
         if (near.length > 0) {
           const c = near[Math.floor(Math.random() * near.length)];
-          e.x = fire.cellX(c) + (Math.random() - 0.5) * 1.4;
-          e.z = fire.cellZ(c) + (Math.random() - 0.5) * 1.4;
-          e.y = 0.3;
+          s.x = fire.cellX(c) + (Math.random() - 0.5) * 1.4;
+          s.z = fire.cellZ(c) + (Math.random() - 0.5) * 1.4;
+          s.y = 0.3;
         } else {
-          e.y = 99;
+          s.y = 99;
         }
       }
-      this.emberPositions[i * 3] = e.x + Math.sin(this.time * 2 + i) * e.drift * 0.5 * (e.y / 6);
-      this.emberPositions[i * 3 + 1] = e.y < 90 ? e.y : -50;
-      this.emberPositions[i * 3 + 2] = e.z;
+      const flutter = Math.sin(this.time * 2 + i) * s.drift * 0.5 * (s.y / 6);
+      this.sparkPositions[i * 3] = s.x + flutter + wind.dirX * carry * s.y;
+      this.sparkPositions[i * 3 + 1] = s.y < 90 ? s.y : -50;
+      this.sparkPositions[i * 3 + 2] = s.z + wind.dirZ * carry * s.y;
     });
-    this.emberGeometry.attributes.position.needsUpdate = true;
+    this.sparkGeometry.attributes.position.needsUpdate = true;
+  }
+
+  /** Embers on their way to start a new fire: a glowing head with a short trail along an arc. */
+  private updateFlyingEmbers(): void {
+    const embers = this.spotting.inFlight;
+    const count = Math.min(embers.length, MAX_FLYING_EMBERS);
+    const pos = this.flyingPositions;
+    for (let i = 0; i < count; i++) {
+      const e = embers[i];
+      const arc = EMBER_ARC_BASE + EMBER_ARC_PER_UNIT * Math.hypot(e.toX - e.fromX, e.toZ - e.fromZ);
+      for (let k = 0; k < EMBER_TRAIL; k++) {
+        const p = Math.max(0, e.age / e.duration - k * EMBER_TRAIL_STEP);
+        const o = (i * EMBER_TRAIL + k) * 3;
+        pos[o] = e.fromX + (e.toX - e.fromX) * p;
+        pos[o + 1] = 0.5 + Math.sin(p * Math.PI) * arc;
+        pos[o + 2] = e.fromZ + (e.toZ - e.fromZ) * p;
+      }
+    }
+    this.flyingGeometry.setDrawRange(0, count * EMBER_TRAIL);
+    this.flyingGeometry.attributes.position.needsUpdate = true;
+  }
+
+  /** Sets the dummy's rotation: a spin around its own axis, then leaning with the wind. */
+  private orient(spin: number): void {
+    this.spin.setFromAxisAngle(UP, spin);
+    this.dummy.quaternion.setFromAxisAngle(this.leanAxis, this.leanAngle).multiply(this.spin);
   }
 
   /** Darkens cells that burnt out since the last frame. */
@@ -272,6 +329,18 @@ export class FireView {
     this.dummy.updateMatrix();
     mesh.setMatrixAt(index, this.dummy.matrix);
   }
+}
+
+const UP = new THREE.Vector3(0, 1, 0);
+
+/** Red, screen-sized points (size in pixels of the low-resolution render target). */
+function points(geometry: THREE.BufferGeometry, size: number): THREE.Points {
+  const p = new THREE.Points(
+    geometry,
+    new THREE.PointsMaterial({ color: new THREE.Color(1, 0.12, 0.12), size, sizeAttenuation: false }),
+  );
+  p.frustumCulled = false;
+  return p;
 }
 
 function flameMaterial(): THREE.MeshBasicMaterial {
