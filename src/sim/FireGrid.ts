@@ -1,5 +1,6 @@
 import type { Rng } from '../core/random';
 import type { Forest } from './Forest';
+import type { Wind } from './Wind';
 import { CELL_SIZE, GRID_SIZE, WORLD_HALF } from './world';
 
 export const CellState = {
@@ -33,6 +34,10 @@ const SPREAD_RATE = 0.2;
 const SPREAD_GROWTH = 0.02;
 /** Trees catch fire more easily than bare ground. */
 const TREE_CATCH_FACTOR = 2.5;
+/** Downwind spread at normal wind strength: 1 + this (5 → 6× as fast). */
+const WIND_SPREAD = 5;
+/** Spread against the wind never drops below this share. */
+const WIND_MIN_FACTOR = 0.15;
 /** Diagonal neighbours are further away, so they catch less often. */
 const DIAGONAL_FACTOR = 0.7;
 /** Burn duration ranges in seconds. */
@@ -83,6 +88,7 @@ export class FireGrid {
   constructor(
     private readonly forest: Forest,
     private readonly rng: Rng,
+    private readonly wind: Wind,
   ) {
     forest.trees.forEach((tree, i) => {
       const c = this.cellOf(tree.x, tree.z);
@@ -157,7 +163,10 @@ export class FireGrid {
           if (this.state[nc] !== CellState.Fresh) continue;
           const tree = this.cellTree[nc] >= 0 ? TREE_CATCH_FACTOR : 1;
           const diagonal = di !== 0 && dj !== 0 ? DIAGONAL_FACTOR : 1;
-          if (this.rng() < rate * dt * ramp * tree * diagonal) this.ignite(nc);
+          // Downwind neighbours catch much faster, upwind ones hardly at all.
+          const along = (di * this.wind.dirX + dj * this.wind.dirZ) / Math.hypot(di, dj);
+          const wind = Math.max(WIND_MIN_FACTOR, 1 + WIND_SPREAD * this.wind.strength * along);
+          if (this.rng() < rate * dt * ramp * tree * diagonal * wind) this.ignite(nc);
         }
       }
     }

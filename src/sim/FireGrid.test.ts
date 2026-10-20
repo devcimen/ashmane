@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/random';
 import { CellState, FireGrid, HEAT_RADIUS } from './FireGrid';
 import { Forest } from './Forest';
+import { Wind } from './Wind';
 
 const DT = 1 / 30;
 
 function setup(seed = 3) {
   const forest = new Forest(mulberry32(seed));
-  const fire = new FireGrid(forest, mulberry32(seed + 1000));
+  // Calm wind, so these tests check the fire itself.
+  const fire = new FireGrid(forest, mulberry32(seed + 1000), new Wind(mulberry32(seed), 0));
   return { forest, fire };
 }
 
@@ -67,6 +69,27 @@ describe('FireGrid', () => {
     run(fire, 20);
     expect(count(fire, CellState.Burning)).toBeGreaterThan(27);
     expect(count(fire, CellState.Burnt)).toBeGreaterThan(0);
+  });
+
+  it('races downwind and barely moves upwind', () => {
+    const forest = new Forest(mulberry32(3));
+    const wind = new Wind(mulberry32(3));
+    wind.angle = 0; // blowing towards +X
+    const fire = new FireGrid(forest, mulberry32(42), wind);
+    // Only the test fire at the start: clear the origins.
+    fire.burning.length = 0;
+    fire.scheduled.length = 0;
+    fire.state.fill(CellState.Fresh);
+    fire.ignite(fire.cellOf(0, 0));
+    for (let t = 0; t < 12; t += DT) fire.update(DT); // wind kept fixed, no update
+    let east = 0;
+    let west = 0;
+    fire.state.forEach((s, c) => {
+      if (s === CellState.Fresh) return;
+      east = Math.max(east, fire.cellX(c));
+      west = Math.max(west, -fire.cellX(c));
+    });
+    expect(east).toBeGreaterThan(west * 2.5);
   });
 
   it('is reproducible for the same seed', () => {
