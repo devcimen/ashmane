@@ -17,7 +17,7 @@ export const HORSE_RADIUS = 0.45;
 
 export const MAX_HEALTH = 100;
 /** Health lost per second per unit of heat (one full-strength flame right next to the horse ≈ 1). */
-const DAMAGE_PER_HEAT = 12;
+const DAMAGE_PER_HEAT = 8;
 /** Extra damage per second spent in the heat without a break (0.5 = +50 % per second). */
 const EXPOSURE_GAIN = 0.5;
 /** Exposure stops growing after this many seconds. */

@@ -104,20 +104,25 @@ describe('FireGrid', () => {
     expect(HEAT_RADIUS).toBeGreaterThan(0);
   });
 
-  it('pushes a circle out of a strongly burning cell', () => {
+  it('hurts much more right inside the flames than just beside them', () => {
     const { fire } = setup();
-    const c = fire.cellOf(0, 0);
+    const c = fire.cellOf(0, 0); // the start area is free of other fires
     fire.ignite(c);
     run(fire, 1.5);
-    const hit = fire.collide(fire.cellX(c) + 1.0, fire.cellZ(c), 0.45);
-    expect(hit).not.toBeNull();
-    expect(hit!.x - fire.cellX(c)).toBeGreaterThanOrEqual(0.8 + 0.45 - 1e-6);
+    const inside = fire.heatAt(fire.cellX(c), fire.cellZ(c));
+    const beside = fire.heatAt(fire.cellX(c) + 0.9, fire.cellZ(c)); // just over the cell border
+    expect(inside).toBeGreaterThan(beside * 3);
   });
 
-  it('does not block before a fire has flared up', () => {
-    const { fire } = setup();
-    const c = fire.cellOf(0, 0);
-    fire.ignite(c);
-    expect(fire.collide(fire.cellX(c), fire.cellZ(c), 0.45)).toBeNull();
+  it('radiates more heat from a burning tree than from burning ground', () => {
+    const { forest, fire } = setup();
+    const tree = forest.trees.find((t) => Math.hypot(t.x, t.z) < 9)!;
+    const treeCell = fire.cellOf(tree.x, tree.z);
+    const groundCell = fire.cellOf(0, 0);
+    fire.ignite(treeCell);
+    fire.ignite(groundCell);
+    run(fire, 1.5);
+    const near = (c: number) => fire.heatAt(fire.cellX(c) + 1.2, fire.cellZ(c));
+    expect(near(treeCell)).toBeGreaterThan(near(groundCell));
   });
 });

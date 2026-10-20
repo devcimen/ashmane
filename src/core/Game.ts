@@ -68,7 +68,6 @@ export class Game {
 
     this.horse.update(dt);
     this.resolve(this.forest.collide(this.horse.x, this.horse.z, HORSE_RADIUS));
-    this.resolve(this.fire.collide(this.horse.x, this.horse.z, HORSE_RADIUS));
     this.fire.update(dt);
     this.horse.applyHeat(this.fire.heatAt(this.horse.x, this.horse.z), dt);
 

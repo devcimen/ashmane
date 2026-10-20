@@ -1,5 +1,5 @@
 import type { Rng } from '../core/random';
-import type { Collision, Forest } from './Forest';
+import type { Forest } from './Forest';
 import { CELL_SIZE, GRID_SIZE, WORLD_HALF } from './world';
 
 export const CellState = {
@@ -45,10 +45,12 @@ const FLARE_UP = 1.2;
 const DIE_DOWN = 2.2;
 /** Seconds until a fresh fire spreads at full rate. */
 const SPREAD_RAMP = 1.5;
-/** Burning cells block movement once their intensity is above this. */
-const BLOCK_INTENSITY = 0.3;
 /** Burning cells within this distance radiate heat. */
 export const HEAT_RADIUS = 3;
+/** A burning tree radiates this much more heat than burning ground. */
+const TREE_HEAT_FACTOR = 1.6;
+/** Heat multiplier when the cell under the horse is burning itself. */
+const IN_FIRE_FACTOR = 2;
 
 export interface ScheduledFire {
   /** Centre cell of the patch. */
@@ -161,55 +163,24 @@ export class FireGrid {
     }
   }
 
-  /** Heat at a position: sum of nearby flame intensities, falling off with distance. */
+  /**
+   * Heat at a position: sum of nearby flame intensities, falling off with distance.
+   * Burning trees radiate more than burning ground, and standing right in the flames counts double.
+   * A big fire therefore hurts much more than grazing a small one.
+   */
   heatAt(x: number, z: number): number {
     let heat = 0;
     this.forEachCellNear(x, z, HEAT_RADIUS, (c) => {
       const k = this.intensity(c);
       if (k <= 0) return;
       const d = Math.hypot(this.cellX(c) - x, this.cellZ(c) - z);
-      if (d < HEAT_RADIUS) heat += k * (1 - d / HEAT_RADIUS) ** 2;
+      if (d >= HEAT_RADIUS) return;
+      const source = this.cellTree[c] >= 0 ? TREE_HEAT_FACTOR : 1;
+      heat += k * source * (1 - d / HEAT_RADIUS) ** 2;
     });
+    const here = this.cellOf(x, z);
+    if (here >= 0 && this.intensity(here) > 0) heat *= IN_FIRE_FACTOR;
     return heat;
-  }
-
-  /** Pushes a circle out of strongly burning cells (treated as squares). Null when nothing was hit. */
-  collide(x: number, z: number, radius: number): Collision | null {
-    let nx = 0;
-    let nz = 0;
-    let hit = false;
-    const half = CELL_SIZE / 2;
-    this.forEachCellNear(x, z, radius + CELL_SIZE, (c) => {
-      if (this.intensity(c) < BLOCK_INTENSITY) return;
-      const cx = this.cellX(c);
-      const cz = this.cellZ(c);
-      // Closest point of the cell square to the circle centre.
-      const px = Math.max(cx - half, Math.min(x, cx + half));
-      const pz = Math.max(cz - half, Math.min(z, cz + half));
-      let dx = x - px;
-      let dz = z - pz;
-      let d = Math.hypot(dx, dz);
-      if (d >= radius) return;
-      if (d < 1e-6) {
-        // Centre is inside the square: leave along the shortest way out.
-        const ox = x - cx;
-        const oz = z - cz;
-        if (Math.abs(ox) > Math.abs(oz)) [dx, dz] = [Math.sign(ox) || 1, 0];
-        else [dx, dz] = [0, Math.sign(oz) || 1];
-        x = dx !== 0 ? cx + dx * (half + radius) : x;
-        z = dz !== 0 ? cz + dz * (half + radius) : z;
-        d = 1;
-      } else {
-        x = px + (dx / d) * radius;
-        z = pz + (dz / d) * radius;
-      }
-      nx += dx / d;
-      nz += dz / d;
-      hit = true;
-    });
-    if (!hit) return null;
-    const len = Math.hypot(nx, nz) || 1;
-    return { x, z, nx: nx / len, nz: nz / len };
   }
 
   private burnOut(c: number): void {
