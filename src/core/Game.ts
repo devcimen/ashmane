@@ -19,8 +19,11 @@ const WIND_SEED_SALT = 0x2545f491;
 const SPOT_SEED_SALT = 0x1b873593;
 /** Damage per second that shakes the camera at full strength; less damage shakes less. */
 const SHAKE_FULL_DAMAGE = 60;
+/** Waking up at the start of a run: total seconds, and how long the screen takes to fade in. */
+const WAKE_DURATION = 3.4;
+const WAKE_FADE = 2;
 
-type GameState = 'playing' | 'won' | 'dead';
+type GameState = 'waking' | 'playing' | 'won' | 'dead';
 
 /** Owns the main loop and the run state, and wires simulation and rendering together. */
 export class Game {
@@ -39,8 +42,9 @@ export class Game {
   private forestView?: ForestView;
   private fireView?: FireView;
   private edgeView?: EdgeView;
-  private state: GameState = 'playing';
+  private state: GameState = 'waking';
   private elapsed = 0;
+  private wakeTime = 0;
 
   private lastTime = 0;
   private frameId = 0;
@@ -63,10 +67,12 @@ export class Game {
 
   update(dt: number): void {
     const restart = this.input.consumePress('Enter', 'KeyR');
-    if (this.state !== 'playing' && restart) {
+    if ((this.state === 'won' || this.state === 'dead') && restart) {
       this.newRun(randomSeed());
       return;
     }
+
+    if (this.state === 'waking') this.wake(dt);
 
     if (this.state === 'playing') {
       const dir = this.input.direction();
@@ -92,9 +98,19 @@ export class Game {
     else if (!this.forest.edge.contains(this.horse.x, this.horse.z)) this.end('won', 'Entkommen');
   }
 
+  /** The horse lies in the forest as if waking from a dream, gets up, and only then can run. */
+  private wake(dt: number): void {
+    this.wakeTime += dt;
+    const progress = Math.min(1, this.wakeTime / WAKE_DURATION);
+    this.horseView.setWake(progress);
+    if (progress >= 1) this.state = 'playing';
+  }
+
   private end(state: GameState, title: string): void {
     this.state = state;
-    this.hud.showMessage(title, `${this.elapsed.toFixed(1)} s  ·  Wald ${this.seed}  ·  Enter für einen neuen Wald`);
+    if (state === 'dead') this.horseView.die(this.horse.sunk ? 'sunk' : 'burnt');
+    const detail = `${this.elapsed.toFixed(1)} s  ·  Wald ${this.seed}  ·  Enter für einen neuen Wald`;
+    this.hud.showEnd(title, detail, state === 'dead');
   }
 
   /** Moves the horse out of an obstacle and lets it lose speed accordingly. */
@@ -115,8 +131,9 @@ export class Game {
     this.wind = new Wind(mulberry32(seed ^ WIND_SEED_SALT));
     this.fire = new FireGrid(this.forest, mulberry32(seed ^ FIRE_SEED_SALT), this.wind);
     this.spotting = new Spotting(this.fire, this.forest, this.wind, mulberry32(seed ^ SPOT_SEED_SALT));
-    this.state = 'playing';
+    this.state = 'waking';
     this.elapsed = 0;
+    this.wakeTime = 0;
 
     this.forestView?.dispose();
     this.fireView?.dispose();
@@ -126,8 +143,10 @@ export class Game {
     this.edgeView = new EdgeView(this.forest.edge);
     this.renderer.scene.add(this.forestView.object, this.fireView.object, this.edgeView.object);
     this.horseView.reset();
+    this.horseView.setWake(0);
     this.renderer.resetCamera();
-    this.hud.hideMessage();
+    this.hud.hideEnd();
+    this.hud.fadeIn(WAKE_FADE);
   }
 
   private readonly frame = (now: number) => {
@@ -139,7 +158,7 @@ export class Game {
     this.fireView?.update(dt, this.horse.x, this.horse.z);
     this.edgeView?.update(dt);
     this.horseView.update(this.horse, dt);
-    if (dt > 0) this.renderer.shake(this.horse.lastDamage / dt / SHAKE_FULL_DAMAGE);
+    if (dt > 0 && this.state === 'playing') this.renderer.shake(this.horse.lastDamage / dt / SHAKE_FULL_DAMAGE);
     this.renderer.follow(this.horse.x, this.horse.z, dt);
     this.renderer.render();
   };
