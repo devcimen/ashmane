@@ -82,12 +82,13 @@ export class Game {
     this.fire.update(dt);
     this.spotting.update(dt, this.horse);
     this.horse.applyHeat(this.fire.heatAt(this.horse.x, this.horse.z), dt);
+    this.horse.applyGround(this.fire.isBurntAt(this.horse.x, this.horse.z), dt);
 
     this.hud.setHealth(this.horse.health / MAX_HEALTH);
     this.hud.setWind(this.wind.angle, this.wind.strength);
 
     if (this.state !== 'playing') return;
-    if (!this.horse.alive) this.end('dead', 'Verbrannt');
+    if (!this.horse.alive) this.end('dead', this.horse.sunk ? 'Versunken' : 'Verbrannt');
     else if (!this.forest.edge.contains(this.horse.x, this.horse.z)) this.end('won', 'Entkommen');
   }
 

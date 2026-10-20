@@ -172,6 +172,12 @@ export class FireGrid {
     }
   }
 
+  /** True if the ground at this position has burnt out to ash. */
+  isBurntAt(x: number, z: number): boolean {
+    const c = this.cellOf(x, z);
+    return c >= 0 && this.state[c] === CellState.Burnt;
+  }
+
   /**
    * Heat at a position: sum of nearby flame intensities, falling off with distance.
    * Burning trees radiate more than burning ground, and standing right in the flames counts double.
