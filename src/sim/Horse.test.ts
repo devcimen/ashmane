@@ -130,6 +130,14 @@ describe('Horse', () => {
     expect(horse.health).toBe(health);
   });
 
+  it('reports the damage of the last heat update', () => {
+    const horse = new Horse();
+    horse.applyHeat(1, 0.1);
+    expect(horse.lastDamage).toBeCloseTo(MAX_HEALTH - horse.health, 9);
+    horse.applyHeat(0, 0.1);
+    expect(horse.lastDamage).toBe(0);
+  });
+
   it('dies at zero health and does not go below', () => {
     const horse = new Horse();
     for (let t = 0; t < 20; t += 0.1) horse.applyHeat(3, 0.1);

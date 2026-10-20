@@ -41,6 +41,8 @@ export class Horse {
   health = MAX_HEALTH;
   /** Seconds spent in the heat without a break; makes staying close to the fire worse and worse. */
   exposure = 0;
+  /** Health lost in the last applyHeat call; lets the views react to hits. */
+  lastDamage = 0;
 
   private dirX = 0;
   private dirZ = 0;
@@ -73,6 +75,7 @@ export class Horse {
 
   /** Takes damage from the heat at its position; the longer it stays in the heat, the more it hurts. */
   applyHeat(heat: number, dt: number): void {
+    const before = this.health;
     if (heat > 0) {
       this.exposure = Math.min(EXPOSURE_MAX, this.exposure + dt);
       this.health -= heat * DAMAGE_PER_HEAT * (1 + this.exposure * EXPOSURE_GAIN) * dt;
@@ -80,6 +83,7 @@ export class Horse {
     } else {
       this.exposure = Math.max(0, this.exposure - EXPOSURE_RECOVERY * dt);
     }
+    this.lastDamage = before - this.health;
   }
 
   /**

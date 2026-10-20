@@ -12,6 +12,8 @@ import { mulberry32, randomSeed } from './random';
 
 const MAX_DT = 0.05;
 const FIRE_SEED_SALT = 0x5f3759df;
+/** Damage per second that shakes the camera at full strength; less damage shakes less. */
+const SHAKE_FULL_DAMAGE = 40;
 
 type GameState = 'playing' | 'won' | 'dead';
 
@@ -120,6 +122,7 @@ export class Game {
     this.forestView?.update(this.fire);
     this.fireView?.update(dt, this.horse.x, this.horse.z);
     this.horseView.update(this.horse, dt);
+    if (dt > 0) this.renderer.shake(this.horse.lastDamage / dt / SHAKE_FULL_DAMAGE);
     this.renderer.follow(this.horse.x, this.horse.z, dt);
     this.renderer.render();
   };
