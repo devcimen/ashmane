@@ -105,8 +105,8 @@ export class Game {
     this.hud.setWind(this.wind.angle, this.wind.strength);
 
     if (this.state !== 'playing') return;
-    if (!this.horse.alive) this.end('dead', this.horse.sunk ? 'Versunken' : 'Verbrannt');
-    else if (!this.forest.edge.contains(this.horse.x, this.horse.z)) this.end('won', 'Entkommen');
+    if (!this.horse.alive) this.end('dead', this.horse.sunk ? 'Swallowed' : 'Burnt');
+    else if (!this.forest.edge.contains(this.horse.x, this.horse.z)) this.end('won', 'Escaped');
   }
 
   /** The horse lies in the forest as if waking from a dream, gets up, and only then can run. */
@@ -120,7 +120,7 @@ export class Game {
   private end(state: GameState, title: string): void {
     this.state = state;
     if (state === 'dead') this.horseView.die(this.horse.sunk ? 'sunk' : 'burnt');
-    const detail = `${this.elapsed.toFixed(1)} s  ·  Wald ${this.seed}  ·  Enter für einen neuen Wald`;
+    const detail = `${this.elapsed.toFixed(1)} s  ·  Forest ${this.seed}  ·  Enter for a new forest`;
     this.hud.showEnd(title, detail, state === 'dead');
   }
 
