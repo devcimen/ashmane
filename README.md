@@ -19,6 +19,7 @@ npm run preview    # serve the built version from dist/
 npm run typecheck  # type-check only
 npm test           # run the unit tests once
 npm run test:watch # run the unit tests in watch mode
+npm run balance    # let a bot play 160 runs and print how hard the game is
 ```
 
 ## Structure
@@ -33,3 +34,10 @@ docs/prototype/    single-file look prototype (reference only)
 ```
 
 Each forest is generated from a seed, which is logged to the browser console on start.
+
+## Tuning
+
+All gameplay values (map size, fire, wind, embers, horse) live in `src/sim/balance.ts`.
+After changing them, `npm run balance` lets a simple bot flee from 160 forests and prints
+how often it escapes and where it takes damage. The bot never avoids fire, so compare the
+numbers before and after a change rather than reading them as absolute difficulty.

@@ -2,6 +2,7 @@ import { type Collision, Forest } from '../sim/Forest';
 import { FireGrid } from '../sim/FireGrid';
 import { HORSE_RADIUS, MAX_HEALTH } from '../sim/balance';
 import { Horse } from '../sim/Horse';
+import { FIRE_SEED_SALT, SPOT_SEED_SALT, WIND_SEED_SALT } from '../sim/seeds';
 import { Spotting } from '../sim/Spotting';
 import { Wind } from '../sim/Wind';
 import { EdgeView } from '../render/EdgeView';
@@ -16,9 +17,6 @@ import { Input } from './Input';
 import { mulberry32, randomSeed } from './random';
 
 const MAX_DT = 0.05;
-const FIRE_SEED_SALT = 0x5f3759df;
-const WIND_SEED_SALT = 0x2545f491;
-const SPOT_SEED_SALT = 0x1b873593;
 /** Damage per second that shakes the camera at full strength; less damage shakes less. */
 const SHAKE_FULL_DAMAGE = 60;
 /** Waking up at the start of a run: total seconds, and how long the screen takes to fade in. */
