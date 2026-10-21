@@ -1,38 +1,21 @@
-/** Units per second at full gallop. */
-export const MAX_SPEED = 8;
-/** How quickly speed approaches its target while a direction is held (1/s). Higher = snappier. */
-const SPEED_RESPONSE = 3.5;
-/** How quickly the horse coasts to a stop when no direction is held (1/s). */
-const BRAKE_RESPONSE = 3;
-/** Below this speed a coasting horse comes to a full stop. */
-const STOP_SPEED = 0.05;
-/** Turning rate when standing or walking (radians/s): can turn almost on the spot. */
-const TURN_SLOW = 6;
-/** Turning rate at full gallop (radians/s): only wide arcs. */
-const TURN_FAST = 2.5;
-/** Lowest speed factor in sharp turns; a U-turn slows down to this share of MAX_SPEED. */
-const CORNER_SPEED_MIN = 0.25;
-/** Size of the horse as a circle on the ground, for collisions. */
-export const HORSE_RADIUS = 0.45;
-
-export const MAX_HEALTH = 100;
-/** Health lost per second per unit of heat (one full-strength flame right next to the horse ≈ 1). */
-const DAMAGE_PER_HEAT = 8;
-/** Extra damage per second spent in the heat without a break (0.5 = +50 % per second). */
-const EXPOSURE_GAIN = 0.5;
-/** Exposure stops growing after this many seconds. */
-const EXPOSURE_MAX = 4;
-/** Seconds of exposure that wear off per second out of the heat. */
-const EXPOSURE_RECOVERY = 1;
-
-/** Seconds a standing horse takes to sink completely into burnt ground. */
-const SINK_TIME = 6;
-/** At full gallop the horse sinks only at this share of the standing rate. */
-const SINK_GALLOP_SHARE = 0.08;
-/** Off the ash the horse climbs back out this many times faster than it sank. */
-const SINK_RECOVERY = 2;
-/** Share of the top speed lost when sunk in completely; it is like running through quicksand. */
-const SINK_SLOWDOWN = 0.5;
+import {
+  BRAKE_RESPONSE,
+  CORNER_SPEED_MIN,
+  DAMAGE_PER_HEAT,
+  EXPOSURE_GAIN,
+  EXPOSURE_MAX,
+  EXPOSURE_RECOVERY,
+  MAX_HEALTH,
+  MAX_SPEED,
+  SINK_GALLOP_SHARE,
+  SINK_RECOVERY,
+  SINK_SLOWDOWN,
+  SINK_TIME,
+  SPEED_RESPONSE,
+  STOP_SPEED,
+  TURN_FAST,
+  TURN_SLOW,
+} from './balance';
 
 /**
  * Horse state on the ground plane. Pure logic, no rendering.

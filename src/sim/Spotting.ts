@@ -1,36 +1,26 @@
 import type { Rng } from '../core/random';
+import {
+  AHEAD_DISTANCE_MAX,
+  AHEAD_DISTANCE_MIN,
+  AHEAD_FIRE_RANGE,
+  AHEAD_INTERVAL_MAX,
+  AHEAD_INTERVAL_MIN,
+  AHEAD_MIN_SPEED,
+  AHEAD_SAFE_DISTANCE,
+  AHEAD_SPREAD,
+  FLIGHT_SPEED,
+  SPOT_PATCH_RADIUS,
+  TREE_SPOT_DISTANCE_MAX,
+  TREE_SPOT_DISTANCE_MIN,
+  TREE_SPOT_INTENSITY,
+  TREE_SPOT_RATE,
+  TREE_SPOT_SPREAD,
+} from './balance';
 import { CellState, type FireGrid } from './FireGrid';
 import type { Forest } from './Forest';
 import type { Horse } from './Horse';
 import type { Wind } from './Wind';
 
-/** Chance per second that a strongly burning tree throws an ember downwind. */
-const TREE_SPOT_RATE = 0.03;
-/** Trees throw embers only while burning at least this strongly. */
-const TREE_SPOT_INTENSITY = 0.7;
-const TREE_SPOT_DISTANCE_MIN = 6;
-const TREE_SPOT_DISTANCE_MAX = 20;
-/** Spread of the throw direction around the wind (radians, ±). */
-const TREE_SPOT_SPREAD = 0.5;
-
-/** Seconds between embers that land ahead of the running horse. */
-const AHEAD_INTERVAL_MIN = 6;
-const AHEAD_INTERVAL_MAX = 12;
-/** Only when a fire is within this distance of the horse. */
-const AHEAD_FIRE_RANGE = 45;
-/** Only while the horse runs at least this fast. */
-const AHEAD_MIN_SPEED = 2;
-/** How far ahead of the horse the ember lands, and how far it may deviate sideways (radians, ±). */
-const AHEAD_DISTANCE_MIN = 14;
-const AHEAD_DISTANCE_MAX = 22;
-const AHEAD_SPREAD = 0.4;
-/** Never closer to the horse than this when it lands, so it is never unavoidable. */
-const AHEAD_SAFE_DISTANCE = 10;
-
-/** Ember flight speed (units/s); longer throws stay in the air longer. */
-const FLIGHT_SPEED = 14;
-/** Size of the fire patch a landing ember starts, in cells. */
-const SPOT_PATCH_RADIUS = 1;
 
 export interface Ember {
   fromX: number;

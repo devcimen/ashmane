@@ -1,5 +1,5 @@
 import type { Rng } from '../core/random';
-import { FOREST_RADIUS_MAX, FOREST_RADIUS_MIN } from './world';
+import { FOREST_RADIUS_MAX, FOREST_RADIUS_MIN } from './balance';
 
 /** Number of overlaid waves that shape the edge; more = more wobbly. */
 const HARMONICS = 4;

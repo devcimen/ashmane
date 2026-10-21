@@ -1,6 +1,7 @@
 import { type Collision, Forest } from '../sim/Forest';
 import { FireGrid } from '../sim/FireGrid';
-import { HORSE_RADIUS, Horse, MAX_HEALTH } from '../sim/Horse';
+import { HORSE_RADIUS, MAX_HEALTH } from '../sim/balance';
+import { Horse } from '../sim/Horse';
 import { Spotting } from '../sim/Spotting';
 import { Wind } from '../sim/Wind';
 import { EdgeView } from '../render/EdgeView';

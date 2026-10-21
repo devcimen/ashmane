@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/random';
-import { CellState, FireGrid, HEAT_RADIUS } from './FireGrid';
+import { HEAT_RADIUS } from './balance';
+import { CellState, FireGrid } from './FireGrid';
 import { Forest } from './Forest';
 import { Wind } from './Wind';
 

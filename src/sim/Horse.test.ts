@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Horse, MAX_HEALTH, MAX_SPEED } from './Horse';
+import { MAX_HEALTH, MAX_SPEED } from './balance';
+import { Horse } from './Horse';
 
 const DT = 1 / 60;
 

@@ -1,6 +1,36 @@
 import type { Rng } from '../core/random';
 import type { Forest } from './Forest';
 import type { Wind } from './Wind';
+import {
+  DIAGONAL_FACTOR,
+  DIE_DOWN,
+  FLARE_UP,
+  GROUND_BURN_MAX,
+  GROUND_BURN_MIN,
+  HEAT_RADIUS,
+  IN_FIRE_FACTOR,
+  INNER_DISTANCE_MAX,
+  INNER_DISTANCE_MIN,
+  INNER_ORIGIN_COUNT,
+  INNER_PATCH_RADIUS,
+  ORIGIN_ANGLE_JITTER,
+  OUTER_DELAY_MAX,
+  OUTER_DELAY_MIN,
+  OUTER_DEPTH_MAX,
+  OUTER_DEPTH_MIN,
+  OUTER_ORIGIN_COUNT_MAX,
+  OUTER_ORIGIN_COUNT_MIN,
+  OUTER_PATCH_RADIUS,
+  SPREAD_GROWTH,
+  SPREAD_RAMP,
+  SPREAD_RATE,
+  TREE_BURN_MAX,
+  TREE_BURN_MIN,
+  TREE_CATCH_FACTOR,
+  TREE_HEAT_FACTOR,
+  WIND_MIN_FACTOR,
+  WIND_SPREAD,
+} from './balance';
 import { CELL_SIZE, GRID_SIZE, WORLD_HALF } from './world';
 
 export const CellState = {
@@ -10,52 +40,6 @@ export const CellState = {
 } as const;
 export type CellState = (typeof CellState)[keyof typeof CellState];
 
-/** Inner ring: big fires around the start that burn from the first second. */
-const INNER_ORIGIN_COUNT = 3;
-const INNER_DISTANCE_MIN = 15;
-const INNER_DISTANCE_MAX = 30;
-/** Radius of the burning patch each inner origin starts with, in cells. */
-const INNER_PATCH_RADIUS = 3;
-/** Outer ring: small fires further out that flare up later, so escaping the middle is not the end. */
-const OUTER_ORIGIN_COUNT_MIN = 2;
-const OUTER_ORIGIN_COUNT_MAX = 3;
-/** How far towards the forest edge the outer origins lie, as a share of the edge distance. */
-const OUTER_DEPTH_MIN = 0.5;
-const OUTER_DEPTH_MAX = 0.85;
-const OUTER_PATCH_RADIUS = 1;
-/** Seconds into the run when the outer origins flare up. */
-const OUTER_DELAY_MIN = 10;
-const OUTER_DELAY_MAX = 40;
-/** Random deviation from evenly spaced directions (radians, ±). */
-const ORIGIN_ANGLE_JITTER = 0.5;
-/** Chance per second that a burning cell sets a direct neighbour alight, at the start of a run. */
-const SPREAD_RATE = 0.2;
-/** How much faster the spreading gets per second of run time (0.02 = +2 % per second). */
-const SPREAD_GROWTH = 0.02;
-/** Trees catch fire more easily than bare ground. */
-const TREE_CATCH_FACTOR = 2.5;
-/** Downwind spread at normal wind strength: 1 + this (5 → 6× as fast). */
-const WIND_SPREAD = 5;
-/** Spread against the wind never drops below this share. */
-const WIND_MIN_FACTOR = 0.15;
-/** Diagonal neighbours are further away, so they catch less often. */
-const DIAGONAL_FACTOR = 0.7;
-/** Burn duration ranges in seconds. */
-const GROUND_BURN_MIN = 6;
-const GROUND_BURN_MAX = 9;
-const TREE_BURN_MIN = 13;
-const TREE_BURN_MAX = 18;
-/** Seconds until a fresh fire reaches full strength, and before burning out it fades. */
-const FLARE_UP = 1.2;
-const DIE_DOWN = 2.2;
-/** Seconds until a fresh fire spreads at full rate. */
-const SPREAD_RAMP = 1.5;
-/** Burning cells within this distance radiate heat. */
-export const HEAT_RADIUS = 3;
-/** A burning tree radiates this much more heat than burning ground. */
-const TREE_HEAT_FACTOR = 1.6;
-/** Heat multiplier when the cell under the horse is burning itself. */
-const IN_FIRE_FACTOR = 2;
 
 export interface ScheduledFire {
   /** Centre cell of the patch. */
