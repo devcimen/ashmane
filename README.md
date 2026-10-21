@@ -41,3 +41,20 @@ All gameplay values (map size, fire, wind, embers, horse) live in `src/sim/balan
 After changing them, `npm run balance` lets a simple bot flee from 160 forests and prints
 how often it escapes and where it takes damage. The bot never avoids fire, so compare the
 numbers before and after a change rather than reading them as absolute difficulty.
+
+## Releases
+
+Versions follow [Semantic Versioning](https://semver.org): patch for fixes and balance,
+minor for new features. Notes for every version are in [CHANGELOG.md](CHANGELOG.md).
+
+Branches: features are built on `feature/*` and merged into `develop`. `main` holds the
+released versions only, and Vercel deploys production from `main` (other branches are not
+deployed, see `vercel.json`).
+
+To release:
+
+1. On a `release/x.y.z` branch from `develop`, set the version in `package.json` and add the
+   notes to `CHANGELOG.md`; merge it into `develop`.
+2. Merge `develop` into `main`. Vercel deploys it.
+3. Tag the release on `main` and push the tag: `git tag vx.y.z && git push origin vx.y.z`.
+4. Create a GitHub release from the tag and paste the notes from the changelog.
