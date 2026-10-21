@@ -1,7 +1,5 @@
-/** Closest the forest edge comes to the centre, in world units. */
-export const FOREST_RADIUS_MIN = 90;
-/** Furthest the forest edge reaches from the centre, in world units. */
-export const FOREST_RADIUS_MAX = 150;
+import { FOREST_RADIUS_MAX } from './balance';
+
 /** Open meadow between the furthest forest edge and the end of the world. */
 const MEADOW_WIDTH = 20;
 

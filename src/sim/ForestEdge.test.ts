@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/random';
 import { ForestEdge } from './ForestEdge';
-import { FOREST_RADIUS_MAX, FOREST_RADIUS_MIN } from './world';
+import { FOREST_RADIUS_MAX, FOREST_RADIUS_MIN } from './balance';
 
 const angles = Array.from({ length: 720 }, (_, i) => (i / 720) * Math.PI * 2);
 

@@ -1,4 +1,14 @@
 import type { Rng } from '../core/random';
+import {
+  CLEAR_RADIUS,
+  COLLISION_FACTOR,
+  EDGE_DENSITY,
+  MAX_SCALE,
+  MIN_SCALE,
+  MIN_SPACING,
+  THIN_OUT_DEPTH,
+  TREE_DENSITY,
+} from './balance';
 import { ForestEdge } from './ForestEdge';
 
 export type TreeType = 'pine' | 'broadleaf';
@@ -18,11 +28,6 @@ export interface Tree {
 export const CROWN_RADIUS: Record<TreeType, number> = { pine: 1.6, broadleaf: 1.9 };
 /** Trunk radius at the base per tree type at scale 1; all that blocks once a tree is charred. */
 const TRUNK_RADIUS: Record<TreeType, number> = { pine: 0.3, broadleaf: 0.38 };
-/** Range of tree sizes. */
-const MIN_SCALE = 0.85;
-const MAX_SCALE = 1.45;
-/** Share of the crown radius that blocks movement: between trunk and full crown. */
-const COLLISION_FACTOR = 0.5;
 /** Largest possible collision radius, used to widen neighbour searches. */
 const MAX_COLLISION_RADIUS = Math.max(...Object.values(CROWN_RADIUS)) * MAX_SCALE * COLLISION_FACTOR;
 /** Push-out passes; a second pass settles cases where two trees touch the same circle. */
@@ -42,16 +47,6 @@ export interface Collision {
   nz: number;
 }
 
-/** Trees per square unit deep inside the forest. */
-const TREE_DENSITY = 0.016;
-/** Minimum distance between two tree centres. */
-const MIN_SPACING = 3;
-/** Radius around the start (origin) that stays free of trees. */
-const CLEAR_RADIUS = 5;
-/** Over this distance before the edge the forest thins out. */
-const THIN_OUT_DEPTH = 25;
-/** Share of trees that remain right at the edge. */
-const EDGE_DENSITY = 0.3;
 const ATTEMPTS_PER_TREE = 30;
 /** Bucket size of the spatial lookup grid. */
 const BUCKET_SIZE = 4;

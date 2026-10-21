@@ -42,17 +42,17 @@ export class Menu {
     this.intro = document.createElement('div');
     this.intro.style.cssText = 'display:none;max-width:560px;font-size:15px;line-height:1.7;letter-spacing:0.02em';
     this.intro.innerHTML = `
-      <p style="margin:0 0 1em">Almaas erwacht.</p>
-      <p style="margin:0 0 1em">Eben war da noch ein Traum. Jetzt riecht die Luft nach Rauch, und zwischen
-      den Bäumen glüht es rot. Der Wald brennt.</p>
-      <p style="margin:0 0 2em">Almaas muss hier raus, bevor das Feuer ihn einholt.</p>
+      <p style="margin:0 0 1em">Almaas wakes.</p>
+      <p style="margin:0 0 1em">A moment ago there was a dream. Now the air smells of smoke, and something
+      glows red between the trees. The forest is burning.</p>
+      <p style="margin:0 0 2em">Almaas has to get out before the fire catches him.</p>
       <table style="border-collapse:collapse;font-size:13px;opacity:0.85;margin-bottom:2.2em">
-        ${row('WASD / Pfeile', 'laufen')}
-        ${row('Pinke Lichter', 'der Waldrand, dort geht es hinaus')}
-        ${row('Wind', 'treibt das Feuer, der Pfeil oben links zeigt wohin')}
-        ${row('Asche', 'nicht stehen bleiben, sie zieht dich hinunter')}
+        ${row('WASD / Arrows', 'run')}
+        ${row('Pink lights', 'the edge of the forest, the way out')}
+        ${row('Wind', 'drives the fire, the arrow at the top left shows where')}
+        ${row('Ash', 'do not stand still, it pulls you under')}
       </table>
-      <p style="margin:0;letter-spacing:0.18em;font-size:13px">ENTER  ·  AUFWACHEN</p>`;
+      <p style="margin:0;letter-spacing:0.18em;font-size:13px">ENTER  ·  WAKE UP</p>`;
 
     this.root.append(this.title, this.intro);
     container.appendChild(this.root);
