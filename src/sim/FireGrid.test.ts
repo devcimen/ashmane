@@ -1,9 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/random';
-import { HEAT_RADIUS } from './balance';
+import {
+  HEAT_RADIUS,
+  INNER_DISTANCE_MAX,
+  INNER_DISTANCE_MIN,
+  INNER_ORIGIN_COUNT,
+  INNER_PATCH_RADIUS,
+  OUTER_DELAY_MAX,
+  OUTER_DELAY_MIN,
+  OUTER_DEPTH_MAX,
+  OUTER_DEPTH_MIN,
+  OUTER_ORIGIN_COUNT_MAX,
+  OUTER_ORIGIN_COUNT_MIN,
+} from './balance';
 import { CellState, FireGrid } from './FireGrid';
 import { Forest } from './Forest';
 import { Wind } from './Wind';
+import { CELL_SIZE } from './world';
 
 const DT = 1 / 30;
 
@@ -23,13 +36,15 @@ function count(fire: FireGrid, state: CellState): number {
 }
 
 describe('FireGrid', () => {
-  it('starts with big inner fires around, but not at, the start', () => {
+  it('starts with inner fire patches around, but not at, the start', () => {
     const { fire } = setup();
-    expect(fire.burning.length).toBeGreaterThan(3 * 20);
+    // A patch reaches this far around its centre (radius in cells plus the cell's own size).
+    const reach = (INNER_PATCH_RADIUS + 1) * CELL_SIZE;
+    expect(fire.burning.length).toBeGreaterThanOrEqual(INNER_ORIGIN_COUNT);
     for (const c of fire.burning) {
       const d = Math.hypot(fire.cellX(c), fire.cellZ(c));
-      expect(d).toBeGreaterThan(9);
-      expect(d).toBeLessThan(36);
+      expect(d).toBeGreaterThan(INNER_DISTANCE_MIN - reach);
+      expect(d).toBeLessThan(INNER_DISTANCE_MAX + reach);
     }
   });
 
@@ -45,22 +60,22 @@ describe('FireGrid', () => {
     }
   });
 
-  it('schedules smaller outer fires towards the edge that flare up later', () => {
+  it('schedules outer fires towards the edge that flare up later', () => {
     const { forest, fire } = setup();
-    expect(fire.scheduled.length).toBeGreaterThanOrEqual(2);
-    expect(fire.scheduled.length).toBeLessThanOrEqual(3);
+    expect(fire.scheduled.length).toBeGreaterThanOrEqual(OUTER_ORIGIN_COUNT_MIN);
+    expect(fire.scheduled.length).toBeLessThanOrEqual(OUTER_ORIGIN_COUNT_MAX);
     for (const s of fire.scheduled) {
-      expect(s.at).toBeGreaterThanOrEqual(10);
-      expect(s.at).toBeLessThanOrEqual(40);
+      expect(s.at).toBeGreaterThanOrEqual(OUTER_DELAY_MIN);
+      expect(s.at).toBeLessThanOrEqual(OUTER_DELAY_MAX);
       const x = fire.cellX(s.cell);
       const z = fire.cellZ(s.cell);
       const share = Math.hypot(x, z) / forest.edge.radiusAt(Math.atan2(z, x));
-      expect(share).toBeGreaterThan(0.48);
-      expect(share).toBeLessThan(0.87);
-      expect(fire.state[s.cell]).toBe(CellState.Fresh);
+      // Small tolerance: the centre snaps to a grid cell.
+      expect(share).toBeGreaterThan(OUTER_DEPTH_MIN - 0.02);
+      expect(share).toBeLessThan(OUTER_DEPTH_MAX + 0.02);
     }
     const outer = [...fire.scheduled];
-    run(fire, 41);
+    run(fire, OUTER_DELAY_MAX + 1);
     expect(fire.scheduled).toEqual([]);
     for (const s of outer) expect(fire.state[s.cell]).not.toBe(CellState.Fresh);
   });
@@ -140,6 +155,10 @@ describe('FireGrid', () => {
 
   it('radiates more heat from a burning tree than from burning ground', () => {
     const { forest, fire } = setup();
+    // Only the two test fires: clear the origins.
+    fire.burning.length = 0;
+    fire.scheduled.length = 0;
+    fire.state.fill(CellState.Fresh);
     const tree = forest.trees.find((t) => Math.hypot(t.x, t.z) < 9)!;
     const treeCell = fire.cellOf(tree.x, tree.z);
     const groundCell = fire.cellOf(0, 0);

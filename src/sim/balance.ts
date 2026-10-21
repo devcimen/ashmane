@@ -71,16 +71,16 @@ export const INNER_DISTANCE_MIN = 15;
 export const INNER_DISTANCE_MAX = 30;
 /** Radius of the burning patch each inner origin starts with, in cells. */
 export const INNER_PATCH_RADIUS = 3;
-/** Outer ring: small fires further out that flare up later, so escaping the middle is not the end. */
-export const OUTER_ORIGIN_COUNT_MIN = 2;
-export const OUTER_ORIGIN_COUNT_MAX = 3;
+/** Outer ring: a ring of fires near the forest edge that flare up one after another and close the exits. */
+export const OUTER_ORIGIN_COUNT_MIN = 8;
+export const OUTER_ORIGIN_COUNT_MAX = 10;
 /** How far towards the forest edge the outer origins lie, as a share of the edge distance. */
-export const OUTER_DEPTH_MIN = 0.5;
-export const OUTER_DEPTH_MAX = 0.85;
-export const OUTER_PATCH_RADIUS = 1;
+export const OUTER_DEPTH_MIN = 0.7;
+export const OUTER_DEPTH_MAX = 0.95;
+export const OUTER_PATCH_RADIUS = 2;
 /** Seconds into the run when the outer origins flare up. */
-export const OUTER_DELAY_MIN = 10;
-export const OUTER_DELAY_MAX = 40;
+export const OUTER_DELAY_MIN = 4;
+export const OUTER_DELAY_MAX = 18;
 /** Random deviation from evenly spaced directions (radians, ±). */
 export const ORIGIN_ANGLE_JITTER = 0.5;
 
@@ -144,10 +144,10 @@ export const TREE_SPOT_DISTANCE_MAX = 20;
 export const TREE_SPOT_SPREAD = 0.5;
 
 /** Seconds between embers that land ahead of the running horse. */
-export const AHEAD_INTERVAL_MIN = 6;
-export const AHEAD_INTERVAL_MAX = 12;
+export const AHEAD_INTERVAL_MIN = 4;
+export const AHEAD_INTERVAL_MAX = 8;
 /** Only when a fire is within this distance of the horse. */
-export const AHEAD_FIRE_RANGE = 45;
+export const AHEAD_FIRE_RANGE = 70;
 /** Only while the horse runs at least this fast. */
 export const AHEAD_MIN_SPEED = 2;
 /** How far ahead of the horse the ember lands, and how far it may deviate sideways (radians, ±). */
